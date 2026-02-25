@@ -3,6 +3,7 @@
     "name": "Galerias360",
     "slug": "Galerias360",
     "version": "1.0.0",
+    "jsEngine": "hermes",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "galerias360",
