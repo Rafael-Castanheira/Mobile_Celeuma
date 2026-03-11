@@ -1,30 +1,15 @@
+import { getMapPoints, type MapPoint } from "@/src/lib/360api";
 import { Feather } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 
-const points = [
-  {
-    title: "Centro histórico",
-    detail: "3,1 km do centro",
-    latitude: -4.8668,
-    longitude: -43.3536,
-  },
-  {
-    title: "Galeria Mirante",
-    detail: "1,4 km, aberto",
-    latitude: -4.872,
-    longitude: -43.348,
-  },
-  {
-    title: "Passarela do Sol",
-    detail: "5,2 km, trilha leve",
-    latitude: -4.86,
-    longitude: -43.36,
-  },
-];
+const DEFAULT_MAP_CENTER = {
+  latitude: -4.8668,
+  longitude: -43.3536,
+};
 
 type RouteMetrics = {
   distanceMeters: number;
@@ -32,7 +17,8 @@ type RouteMetrics = {
   steps: string[];
 };
 
-function buildMapHtml(points: { title: string; detail: string; latitude: number; longitude: number }[]) {
+function buildMapHtml(points: MapPoint[]) {
+  const initialCenter = points[0] ?? DEFAULT_MAP_CENTER;
   const markers = points
     .map(
       (p, i) =>
@@ -105,7 +91,7 @@ function buildMapHtml(points: { title: string; detail: string; latitude: number;
 <body>
   <div id="map"></div>
   <script>
-    var map = L.map('map', { maxZoom: 17, zoomControl: false }).setView([${points[0].latitude}, ${points[0].longitude}], 14);
+    var map = L.map('map', { maxZoom: 17, zoomControl: false }).setView([${initialCenter.latitude}, ${initialCenter.longitude}], 14);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     var baseLayers = {
       satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -210,6 +196,9 @@ export default function MapaScreen() {
   const { top } = useSafeAreaInsets();
   const webViewRef = useRef<WebView>(null);
   const [coords, setCoords] = useState({ lat: "--", lng: "--" });
+  const [points, setPoints] = useState<MapPoint[]>([]);
+  const [pointsError, setPointsError] = useState<string | null>(null);
+  const [isLoadingPoints, setIsLoadingPoints] = useState(true);
   const [showRoutes, setShowRoutes] = useState(false);
   const [isLayersMenuOpen, setIsLayersMenuOpen] = useState(false);
   const [isRoutesMenuOpen, setIsRoutesMenuOpen] = useState(false);
@@ -228,6 +217,31 @@ export default function MapaScreen() {
   } | null>(null);
   const [longPressedIndex, setLongPressedIndex] = useState<number | null>(null);
   const routeCounter = useRef(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadPoints() {
+      setIsLoadingPoints(true);
+      setPointsError(null);
+
+      try {
+        const data = await getMapPoints(controller.signal);
+        setPoints(data);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setPointsError(error instanceof Error ? error.message : "Erro ao carregar pontos.");
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoadingPoints(false);
+        }
+      }
+    }
+
+    loadPoints();
+
+    return () => controller.abort();
+  }, []);
 
   function formatDistance(distanceMeters: number) {
     return `${(distanceMeters / 1000).toFixed(2)} km`;
@@ -301,6 +315,7 @@ export default function MapaScreen() {
   }
 
   function handlePointPress(index: number) {
+    if (index < 0 || index >= points.length) return;
     const point = points[index];
     if (selectedIndex === null) {
       // First selection
@@ -515,10 +530,15 @@ export default function MapaScreen() {
       <View style={{ flex: 1, position: 'relative', paddingBottom: tabBarHeight }}>
         <View style={styles.listContainer}>
           <Text style={styles.listHeader}>Pontos em destaque</Text>
+          {isLoadingPoints && <Text style={styles.listStatus}>A carregar pontos...</Text>}
+          {pointsError && <Text style={styles.listStatus}>{pointsError}</Text>}
+          {!isLoadingPoints && !pointsError && points.length === 0 && (
+            <Text style={styles.listStatus}>Sem pontos disponíveis.</Text>
+          )}
           <ScrollView showsVerticalScrollIndicator={false}>
             {points.map((point, index) => (
               <TouchableOpacity
-                key={point.title}
+                key={`${point.title}-${index}`}
                 style={[styles.listItem, selectedIndex === index && styles.listItemSelected]}
                 onPress={() => handlePointPress(index)}
                 activeOpacity={0.7}
@@ -595,7 +615,7 @@ export default function MapaScreen() {
           </TouchableOpacity>
         )}
 
-        {longPressedIndex !== null && (
+        {longPressedIndex !== null && points[longPressedIndex] && (
           <TouchableOpacity
             style={styles.detailCardOverlay}
             onPress={() => setLongPressedIndex(null)}
@@ -768,6 +788,11 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1.5,
     marginBottom: 6,
+  },
+  listStatus: {
+    color: "rgba(248,250,252,0.65)",
+    fontSize: 12,
+    marginBottom: 8,
   },
   listItem: {
     flexDirection: "row",
