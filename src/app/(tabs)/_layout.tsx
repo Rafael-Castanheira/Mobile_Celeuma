@@ -1,17 +1,19 @@
 import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useAppTheme } from "../../context/ThemeContext";
 
 export default function TabsLayout() {
   const { bottom } = useSafeAreaInsets();
+  const { colors } = useAppTheme();
 
   const tabBarStyle = {
-    backgroundColor: "#0d0000",
+    backgroundColor: colors.background,
     borderTopWidth: 0,
     height: 26 + bottom,
     paddingBottom: bottom,
     paddingTop: 0,
-    shadowColor: "#dc2626",
+    shadowColor: colors.shadow,
     shadowOpacity: 0.7,
     shadowRadius: 10,
     elevation: 6,
@@ -19,18 +21,18 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      initialRouteName="index"
+      initialRouteName="inicio"
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#dc2626",
-        tabBarInactiveTintColor: "rgba(255,255,255,0.4)",
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.iconMuted,
         tabBarShowLabel: false,
         tabBarStyle,
         tabBarIconStyle: { marginTop: -20 },
       }}
     >
       <Tabs.Screen
-        name="index"
+        name="inicio"
         options={{
           title: "Home",
           tabBarIcon: ({ color, size }) => (
@@ -44,15 +46,6 @@ export default function TabsLayout() {
           title: "Mapa",
           tabBarIcon: ({ color, size }) => (
             <Feather name="map-pin" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="favoritos"
-        options={{
-          title: "Favoritos",
-          tabBarIcon: ({ color, size }) => (
-            <Feather name="heart" color={color} size={size} />
           ),
         }}
       />

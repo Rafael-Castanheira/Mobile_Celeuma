@@ -1,10 +1,11 @@
-import { getMapPoints, type MapPoint } from "@/src/lib/360api";
+import { getMapPoints, getMapRoutes, type MapPoint, type MapRoute } from "@/src/lib/360api";
 import { Feather } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useEffect, useRef, useState } from "react";
-import { ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Modal, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
+import { useAppTheme } from "../../context/ThemeContext";
 
 const DEFAULT_MAP_CENTER = {
   latitude: -4.8668,
@@ -17,14 +18,68 @@ type RouteMetrics = {
   steps: string[];
 };
 
-function buildMapHtml(points: MapPoint[]) {
+type GeneratedRoute = {
+  id: number;
+  name: string;
+  coordinates: [number, number][];
+};
+
+async function fetchOSRMRoute(
+  coordinates: [number, number][],
+  signal?: AbortSignal
+): Promise<{ latLngs: [number, number][]; distanceMeters: number; durationSeconds: number; steps: string[] } | null> {
+  try {
+    const coordStr = coordinates.map(([lat, lng]) => `${lng},${lat}`).join(';');
+    const url = `https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson&steps=true`;
+    const resp = await fetch(url, signal ? { signal } : undefined);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const route = data.routes?.[0];
+    if (!route?.geometry?.coordinates) return null;
+    const latLngs: [number, number][] = route.geometry.coordinates.map(
+      ([lng, lat]: [number, number]) => [lat, lng]
+    );
+    const steps: string[] = [];
+    route.legs?.forEach((leg: { steps?: { maneuver?: { instruction?: string } }[] }) => {
+      leg.steps?.forEach((step: { maneuver?: { instruction?: string } }) => {
+        if (step?.maneuver?.instruction) steps.push(step.maneuver.instruction);
+      });
+    });
+    return { latLngs, distanceMeters: route.distance ?? 0, durationSeconds: route.duration ?? 0, steps };
+  } catch {
+    return null;
+  }
+}
+
+function buildMapHtml(
+  points: MapPoint[],
+  embeddedRoutes: GeneratedRoute[] = [],
+  theme: {
+    background: string;
+    foreground: string;
+    card: string;
+    border: string;
+    primary: string;
+    primaryForeground: string;
+    mutedForeground: string;
+    overlay: string;
+    softOverlay: string;
+    accentSoft: string;
+  }
+) {
   const initialCenter = points[0] ?? DEFAULT_MAP_CENTER;
   const markers = points
     .map(
       (p, i) =>
-        `L.marker([${p.latitude}, ${p.longitude}], { icon: purpleIcon })
+        `L.circleMarker([${p.latitude}, ${p.longitude}], {
+          radius: 8,
+          color: '${theme.primaryForeground}',
+          weight: 2,
+          fillColor: '${theme.primary}',
+          fillOpacity: 0.95
+        })
           .addTo(map)
-          .bindPopup("<b>${p.title}</b><br>${p.detail}")
+          .bindPopup("<div style='min-width:160px'><strong style='display:block;margin-bottom:4px'>${p.title}</strong><span>${p.detail}</span></div>")
           .on('click', function() {
             window.ReactNativeWebView.postMessage(JSON.stringify({ markerIndex: ${i} }));
           })
@@ -40,51 +95,59 @@ function buildMapHtml(points: MapPoint[]) {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body, #map { width: 100%; height: 100%; }
     .leaflet-routing-container { display: none; }
     .leaflet-bottom.leaflet-right .leaflet-control { margin-bottom: 10px; margin-right: 8px; }
     .leaflet-control-attribution {
-      background: rgba(13, 0, 0, 0.82) !important;
-      color: rgba(248, 250, 252, 0.75) !important;
-      border: 1px solid rgba(220, 38, 38, 0.35);
+      background: ${theme.overlay} !important;
+      color: ${theme.mutedForeground} !important;
+      border: 1px solid ${theme.border};
       border-radius: 8px;
       padding: 3px 8px !important;
       backdrop-filter: blur(2px);
     }
     .leaflet-control-attribution a {
-      color: #dc2626 !important;
+      color: ${theme.primary} !important;
       font-weight: 700;
     }
     .leaflet-control-attribution a:hover {
-      color: #ef4444 !important;
+      color: ${theme.primaryForeground} !important;
     }
     .leaflet-control-zoom {
-      border: 1px solid rgba(220, 38, 38, 0.35) !important;
+      border: 1px solid ${theme.border} !important;
       border-radius: 10px !important;
       overflow: hidden;
       box-shadow: none !important;
     }
     .leaflet-control-zoom a {
-      background-color: rgba(13, 0, 0, 0.82) !important;
-      color: #f8fafc !important;
+      background-color: ${theme.overlay} !important;
+      color: ${theme.foreground} !important;
       border: none !important;
-      border-bottom: 1px solid rgba(220, 38, 38, 0.25) !important;
+      border-bottom: 1px solid ${theme.border} !important;
     }
     .leaflet-control-zoom a:last-child {
       border-bottom: none !important;
     }
     .leaflet-control-zoom a:hover {
-      background-color: #7a1313 !important;
-      color: #ffffff !important;
+      background-color: ${theme.primary} !important;
+      color: ${theme.primaryForeground} !important;
     }
     .leaflet-control-zoom a.leaflet-disabled {
-      color: rgba(248, 250, 252, 0.35) !important;
-      background-color: rgba(13, 0, 0, 0.6) !important;
+      color: ${theme.mutedForeground} !important;
+      background-color: ${theme.softOverlay} !important;
+    }
+    .leaflet-popup-content-wrapper {
+      background: ${theme.card};
+      color: ${theme.foreground};
+      border: 1px solid ${theme.border};
+      border-radius: 12px;
+      box-shadow: none;
+    }
+    .leaflet-popup-tip {
+      background: ${theme.card};
     }
   </style>
 </head>
@@ -120,71 +183,236 @@ function buildMapHtml(points: MapPoint[]) {
       activeBaseLayer.addTo(map);
     };
     window.setBaseLayer('satellite');
-    var purpleIcon = L.icon({
-      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
-      shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    });
     ${markers}
     window.focusPoint = function(lat, lng) {
       map.setView([lat, lng], 16, { animate: true });
     };
     var routes = {};
     var routesVisible = true;
-    var routeCounter = 0;
-    window.addRoute = function(id, lat1, lng1, lat2, lng2) {
-      var ctrl = L.Routing.control({
-        waypoints: [L.latLng(lat1, lng1), L.latLng(lat2, lng2)],
-        router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
-        lineOptions: { styles: [{ color: '#dc2626', weight: 4, opacity: 0.85 }] },
-        show: false,
-        addWaypoints: false,
-        routeWhileDragging: false,
-        fitSelectedRoutes: false,
-        showAlternatives: false,
-        createMarker: function() { return null; }
-      }).addTo(map);
-      ctrl.on('routesfound', function(e) {
-        var route = e.routes && e.routes[0];
-        if (!route) return;
-        var summary = route.summary || {};
-        var steps = (route.instructions || [])
-          .map(function(inst) { return inst.text; })
-          .filter(Boolean);
-        window.ReactNativeWebView.postMessage(JSON.stringify({
-          routeInfo: {
-            id: id,
-            distanceMeters: summary.totalDistance || 0,
-            durationSeconds: summary.totalTime || 0,
-            steps: steps
+    var selectedRouteId = null;
+    var ignoreNextMapClick = false;
+
+    function styleRoute(routeId, isSelected) {
+      var route = routes[routeId];
+      if (!route || !route.polyline) return;
+      route.polyline.setStyle(
+        isSelected
+          ? { color: '${theme.primaryForeground}', weight: 6, opacity: 1 }
+          : { color: '${theme.primary}', weight: 4, opacity: 0.85 }
+      );
+      if (isSelected) {
+        route.polyline.bringToFront();
+        if (route.hitPolyline) route.hitPolyline.bringToFront();
+      }
+    }
+
+    function selectRoute(routeId) {
+      if (selectedRouteId !== null && routes[selectedRouteId]) {
+        styleRoute(selectedRouteId, false);
+      }
+      selectedRouteId = routeId;
+      if (selectedRouteId !== null && routes[selectedRouteId]) {
+        styleRoute(selectedRouteId, true);
+      }
+    }
+
+    window.selectRoute = function(routeId) {
+      selectRoute(routeId);
+    };
+
+    window.clearSelectedRoute = function() {
+      selectRoute(null);
+    };
+
+    window.addRoute = function(id, coordsOrJson) {
+      var coordinates;
+      if (Array.isArray(coordsOrJson)) {
+        coordinates = coordsOrJson;
+      } else {
+        try {
+          coordinates = JSON.parse(coordsOrJson);
+          if (typeof coordinates === 'string') {
+            coordinates = JSON.parse(coordinates);
           }
-        }));
+        } catch (_) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ routeRenderFailed: id }));
+          return;
+        }
+      }
+      if (!Array.isArray(coordinates) || coordinates.length < 2) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ routeRenderFailed: id }));
+        return;
+      }
+      var latLngs = coordinates
+        .map(function(pair) {
+          if (!Array.isArray(pair) || pair.length < 2) return null;
+          return [Number(pair[0]), Number(pair[1])];
+        })
+        .filter(function(pair) {
+          return Array.isArray(pair) && Number.isFinite(pair[0]) && Number.isFinite(pair[1]);
+        });
+
+      if (latLngs.length < 2) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ routeRenderFailed: id }));
+        return;
+      }
+
+      if (routes[id]) { window.removeRoute(id); }
+      var polyline = L.polyline(latLngs, {
+        color: '${theme.primary}',
+        weight: 4,
+        opacity: 0.85,
+        interactive: true,
       });
-      routes[id] = ctrl;
+      var hitPolyline = L.polyline(latLngs, { color: '#000000', weight: 20, opacity: 0, interactive: true });
+      function onAddRouteClick() {
+        ignoreNextMapClick = true;
+        selectRoute(id);
+        window.ReactNativeWebView.postMessage(JSON.stringify({ routeSelected: id }));
+      }
+      polyline.on('click', onAddRouteClick);
+      hitPolyline.on('click', onAddRouteClick);
+
+      routes[id] = { polyline: polyline, hitPolyline: hitPolyline };
+
+      if (selectedRouteId === id) {
+        styleRoute(id, true);
+      }
+
+      if (routesVisible) {
+        polyline.addTo(map);
+        hitPolyline.addTo(map);
+      }
+
+      window.ReactNativeWebView.postMessage(JSON.stringify({ routeRendered: id }));
+
+      var totalDistance = 0;
+      for (var i = 1; i < latLngs.length; i += 1) {
+        totalDistance += map.distance(latLngs[i - 1], latLngs[i]);
+      }
+
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        routeInfo: {
+          id: id,
+          distanceMeters: totalDistance,
+          durationSeconds: Math.round(totalDistance / 1.3),
+          steps: []
+        }
+      }));
     };
     window.removeRoute = function(id) {
-      if (routes[id]) { map.removeControl(routes[id]); delete routes[id]; }
+      if (!routes[id]) return;
+      if (routes[id].polyline && map.hasLayer(routes[id].polyline)) {
+        map.removeLayer(routes[id].polyline);
+      }
+      if (routes[id].hitPolyline && map.hasLayer(routes[id].hitPolyline)) {
+        map.removeLayer(routes[id].hitPolyline);
+      }
+      if (selectedRouteId === id) { selectedRouteId = null; }
+      delete routes[id];
     };
     window.clearRoutes = function() {
-      Object.values(routes).forEach(function(r) { map.removeControl(r); });
+      Object.values(routes).forEach(function(r) {
+        if (r.polyline && map.hasLayer(r.polyline)) { map.removeLayer(r.polyline); }
+        if (r.hitPolyline && map.hasLayer(r.hitPolyline)) { map.removeLayer(r.hitPolyline); }
+      });
       routes = {};
+      selectedRouteId = null;
     };
     window.showRoutes = function() {
       routesVisible = true;
-      Object.values(routes).forEach(function(r) { r.addTo(map); });
+      Object.values(routes).forEach(function(r) {
+        if (r.polyline && !map.hasLayer(r.polyline)) { r.polyline.addTo(map); }
+        if (r.hitPolyline && !map.hasLayer(r.hitPolyline)) { r.hitPolyline.addTo(map); }
+      });
     };
     window.hideRoutes = function() {
       routesVisible = false;
-      Object.values(routes).forEach(function(r) { map.removeControl(r); });
+      Object.values(routes).forEach(function(r) {
+        if (r.polyline && map.hasLayer(r.polyline)) { map.removeLayer(r.polyline); }
+        if (r.hitPolyline && map.hasLayer(r.hitPolyline)) { map.removeLayer(r.hitPolyline); }
+      });
     };
+    window.addRouteOSRM = function(id, waypoints) {
+      var _id = id;
+      var _waypoints = waypoints;
+      var _osrmCoords = _waypoints.map(function(p) { return p[1] + ',' + p[0]; }).join(';');
+      var _url = 'https://router.project-osrm.org/route/v1/driving/' + _osrmCoords + '?overview=full&geometries=geojson&steps=true';
+      function drawPolyline(latLngs, distanceMeters, durationSeconds, steps) {
+        if (routes[_id]) { window.removeRoute(_id); }
+        var _polyline = L.polyline(latLngs, { color: '${theme.primaryForeground}', weight: 4, opacity: 0.9, interactive: true });
+        var _hitPolyline = L.polyline(latLngs, { color: '#000000', weight: 20, opacity: 0, interactive: true });
+        function onRouteClick() {
+          ignoreNextMapClick = true;
+          selectRoute(_id);
+          window.ReactNativeWebView.postMessage(JSON.stringify({ routeSelected: _id }));
+        }
+        _polyline.on('click', onRouteClick);
+        _hitPolyline.on('click', onRouteClick);
+        routes[_id] = { polyline: _polyline, hitPolyline: _hitPolyline };
+        if (selectedRouteId === _id) {
+          styleRoute(_id, true);
+        }
+        if (routesVisible) { _polyline.addTo(map); _hitPolyline.addTo(map); }
+        selectRoute(_id);
+        window.ReactNativeWebView.postMessage(JSON.stringify({ routeRendered: _id }));
+        window.ReactNativeWebView.postMessage(JSON.stringify({ routeInfo: { id: _id, distanceMeters: distanceMeters, durationSeconds: durationSeconds, steps: steps } }));
+      }
+      fetch(_url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          var route = data.routes && data.routes[0];
+          if (!route || !route.geometry || !Array.isArray(route.geometry.coordinates)) { throw new Error('no geometry'); }
+          var latLngs = route.geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
+          var steps = [];
+          if (Array.isArray(route.legs)) {
+            route.legs.forEach(function(leg) {
+              if (!Array.isArray(leg.steps)) return;
+              leg.steps.forEach(function(step) {
+                if (step && step.maneuver && step.maneuver.instruction) { steps.push(step.maneuver.instruction); }
+              });
+            });
+          }
+          drawPolyline(latLngs, route.distance || 0, route.duration || 0, steps);
+        })
+        .catch(function() {
+          var dist = 0;
+          for (var i = 1; i < _waypoints.length; i++) { dist += map.distance(_waypoints[i-1], _waypoints[i]); }
+          drawPolyline(_waypoints, dist, Math.round(dist / 1.3), []);
+        });
+    };
+    ${embeddedRoutes.map((route) => `
+    (function() {
+      var _id = ${route.id};
+      var _waypoints = ${JSON.stringify(route.coordinates)};
+      var _polyline = L.polyline(_waypoints, { color: '${theme.primary}', weight: 3, opacity: 0.35, dashArray: '6,8', interactive: true });
+      var _hitPolyline = L.polyline(_waypoints, { color: '#000000', weight: 20, opacity: 0, interactive: true });
+      function onRouteClick() {
+        ignoreNextMapClick = true;
+        selectRoute(_id);
+        window.ReactNativeWebView.postMessage(JSON.stringify({ routeSelected: _id }));
+      }
+      _polyline.on('click', onRouteClick);
+      _hitPolyline.on('click', onRouteClick);
+      routes[_id] = { polyline: _polyline, hitPolyline: _hitPolyline };
+      if (selectedRouteId === _id) {
+        styleRoute(_id, true);
+      }
+      if (routesVisible) { _polyline.addTo(map); _hitPolyline.addTo(map); }
+    })();
+    `).join('')}
     function sendCenter() {
       var c = map.getCenter();
       window.ReactNativeWebView.postMessage(JSON.stringify({ lat: c.lat.toFixed(4), lng: c.lng.toFixed(4) }));
     }
     map.on('move', sendCenter);
+    map.on('click', function() {
+      if (ignoreNextMapClick) { ignoreNextMapClick = false; return; }
+      if (selectedRouteId !== null) {
+        selectRoute(null);
+        window.ReactNativeWebView.postMessage(JSON.stringify({ routeDeselected: true }));
+      }
+    });
     sendCenter();
   </script>
 </body>
@@ -194,53 +422,123 @@ function buildMapHtml(points: MapPoint[]) {
 export default function MapaScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { top } = useSafeAreaInsets();
+  const { colors } = useAppTheme();
   const webViewRef = useRef<WebView>(null);
   const [coords, setCoords] = useState({ lat: "--", lng: "--" });
   const [points, setPoints] = useState<MapPoint[]>([]);
+  const [apiRoutes, setApiRoutes] = useState<MapRoute[]>([]);
   const [pointsError, setPointsError] = useState<string | null>(null);
+  const [routesError, setRoutesError] = useState<string | null>(null);
   const [isLoadingPoints, setIsLoadingPoints] = useState(true);
-  const [showRoutes, setShowRoutes] = useState(false);
+  const [isLoadingRoutes, setIsLoadingRoutes] = useState(true);
+  const [showRoutes, setShowRoutes] = useState(true);
+  const [isMapReady, setIsMapReady] = useState(false);
   const [isLayersMenuOpen, setIsLayersMenuOpen] = useState(false);
   const [isRoutesMenuOpen, setIsRoutesMenuOpen] = useState(false);
   const [canGoBackInMap, setCanGoBackInMap] = useState(false);
   const [hasOpenedMapLink, setHasOpenedMapLink] = useState(false);
   const [mapViewMode, setMapViewMode] = useState<"satellite" | "topographic" | "streets">("satellite");
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [routeList, setRouteList] = useState<{ id: number; from: string; to: string }[]>([]);
+  const [routeList, setRouteList] = useState<GeneratedRoute[]>([]);
+  const [routeDrawnCount, setRouteDrawnCount] = useState(0);
+  const [selectedRouteId, setSelectedRouteId] = useState<number | null>(null);
   const [routeMetricsById, setRouteMetricsById] = useState<Record<number, RouteMetrics>>({});
-  const [selectedRouteCard, setSelectedRouteCard] = useState<{
-    key: number | "single";
-    title: string;
-    distanceLabel: string;
-    durationLabel: string;
-    steps: string[];
-  } | null>(null);
+  const [isRoutesScreenOpen, setIsRoutesScreenOpen] = useState(false);
+  const [expandedRouteId, setExpandedRouteId] = useState<number | null>(null);
   const [longPressedIndex, setLongPressedIndex] = useState<number | null>(null);
-  const routeCounter = useRef(0);
+  const [bottomTab, setBottomTab] = useState<'points' | 'routes'>('points');
+  const hasBootstrappedRoutes = useRef(false);
+  const resolvedRoutesRef = useRef<GeneratedRoute[]>([]);
+  const routeListRef = useRef<GeneratedRoute[]>([]);
+
+  const resolvedRoutes = useMemo((): GeneratedRoute[] => {
+    if (!points.length) return [];
+    const pointById = new Map(points.map((p) => [p.id, p]));
+    return apiRoutes
+      .map((route) => {
+        const coordinates = route.pointIds
+          .map((id) => pointById.get(id))
+          .filter((p): p is MapPoint => Boolean(p))
+          .map((p) => [p.latitude, p.longitude] as [number, number]);
+        if (coordinates.length < 2) return null;
+        return { id: route.id, name: route.name, coordinates };
+      })
+      .filter((r): r is GeneratedRoute => Boolean(r));
+  }, [points, apiRoutes]);
+
+  useEffect(() => {
+    resolvedRoutesRef.current = resolvedRoutes;
+  }, [resolvedRoutes]);
+
+  useEffect(() => {
+    routeListRef.current = routeList;
+  }, [routeList]);
+
+  const routeLoadStats = useMemo(() => ({
+    total: apiRoutes.length,
+    drawn: routeDrawnCount,
+    discarded: apiRoutes.length - resolvedRoutes.length,
+    failedToRender: resolvedRoutes.length - routeDrawnCount,
+  }), [apiRoutes.length, resolvedRoutes.length, routeDrawnCount]);
+
+  const POLL_INTERVAL_MS = 30_000;
 
   useEffect(() => {
     const controller = new AbortController();
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
-    async function loadPoints() {
-      setIsLoadingPoints(true);
-      setPointsError(null);
+    async function loadMapData(isInitial: boolean) {
+      if (isInitial) {
+        setIsLoadingPoints(true);
+        setIsLoadingRoutes(true);
+        setPointsError(null);
+        setRoutesError(null);
+      }
 
       try {
-        const data = await getMapPoints(controller.signal);
-        setPoints(data);
+        const [pointsData, routesData] = await Promise.all([
+          getMapPoints(controller.signal),
+          getMapRoutes(controller.signal),
+        ]);
+
+        if (controller.signal.aborted) return;
+
+        setPoints((prev) =>
+          JSON.stringify(prev) !== JSON.stringify(pointsData) ? pointsData : prev
+        );
+        setApiRoutes((prev) =>
+          JSON.stringify(prev) !== JSON.stringify(routesData) ? routesData : prev
+        );
+
+        if (isInitial) {
+          setPointsError(null);
+          setRoutesError(null);
+        }
       } catch (error) {
         if (controller.signal.aborted) return;
-        setPointsError(error instanceof Error ? error.message : "Erro ao carregar pontos.");
-      } finally {
-        if (!controller.signal.aborted) {
-          setIsLoadingPoints(false);
+        if (isInitial) {
+          const message = error instanceof Error ? error.message : "Erro ao carregar dados do mapa.";
+          setPointsError(message);
+          setRoutesError(message);
         }
+      } finally {
+        if (!controller.signal.aborted && isInitial) {
+          setIsLoadingPoints(false);
+          setIsLoadingRoutes(false);
+        }
+      }
+
+      if (!controller.signal.aborted) {
+        pollTimer = setTimeout(() => loadMapData(false), POLL_INTERVAL_MS);
       }
     }
 
-    loadPoints();
+    loadMapData(true);
 
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      if (pollTimer !== null) clearTimeout(pollTimer);
+    };
   }, []);
 
   function formatDistance(distanceMeters: number) {
@@ -277,89 +575,73 @@ export default function MapaScreen() {
       .replace(/\btowards\b/gi, "em direção a");
   }
 
-  function openRouteDetails(route: { id: number; from: string; to: string }) {
-    const metrics = routeMetricsById[route.id];
-    if (!metrics) return;
-    setSelectedRouteCard({
-      key: route.id,
-      title: `${route.from} → ${route.to}`,
-      distanceLabel: formatDistance(metrics.distanceMeters),
-      durationLabel: formatDuration(metrics.durationSeconds),
-      steps: metrics.steps.length ? metrics.steps : ["Sem direções disponíveis."],
-    });
+  function openRouteDetails(route: GeneratedRoute) {
+    setSelectedRouteId(route.id);
+    webViewRef.current?.injectJavaScript(`window.selectRoute(${route.id}); true;`);
+    setExpandedRouteId(route.id);
+    setIsRoutesScreenOpen(true);
   }
 
-  function openSingleRouteDetails() {
-    const segments = routeList
-      .map((route) => ({ route, metrics: routeMetricsById[route.id] }))
-      .filter((segment): segment is { route: { id: number; from: string; to: string }; metrics: RouteMetrics } =>
-        Boolean(segment.metrics)
-      );
+  async function createRouteBetweenPoints(fromIdx: number, toIdx: number) {
+    const fromPoint = points[fromIdx];
+    const toPoint = points[toIdx];
 
-    if (!segments.length) return;
+    // Check if an API route already connects these two points
+    const existingApiRoute = apiRoutes.find(
+      (r) => r.pointIds.includes(fromPoint.id) && r.pointIds.includes(toPoint.id)
+    );
+    if (existingApiRoute) {
+      const resolved = resolvedRoutesRef.current.find((r) => r.id === existingApiRoute.id);
+      if (resolved) {
+        setRouteList((prev) => (prev.some((r) => r.id === resolved.id) ? prev : [...prev, resolved]));
+        openRouteDetails(resolved);
+        return;
+      }
+    }
 
-    const totalDistance = segments.reduce((sum, segment) => sum + segment.metrics.distanceMeters, 0);
-    const totalDuration = segments.reduce((sum, segment) => sum + segment.metrics.durationSeconds, 0);
-    const steps = segments.flatMap((segment) => [
-      `${segment.route.from} → ${segment.route.to}`,
-      ...(segment.metrics.steps.length ? segment.metrics.steps : ["Sem direções disponíveis."]),
-    ]);
+    // Create a synthetic route between the two points via OSRM (fetched from RN, no WebView CORS issues)
+    const syntheticId = -(Math.abs(fromPoint.id) * 100000 + Math.abs(toPoint.id));
+    const coords: [number, number][] = [
+      [fromPoint.latitude, fromPoint.longitude],
+      [toPoint.latitude, toPoint.longitude],
+    ];
+    const syntheticRoute: GeneratedRoute = {
+      id: syntheticId,
+      name: `${fromPoint.title} → ${toPoint.title}`,
+      coordinates: coords,
+    };
+    setRouteList((prev) => (prev.some((r) => r.id === syntheticId) ? prev : [...prev, syntheticRoute]));
+    openRouteDetails(syntheticRoute);
 
-    setSelectedRouteCard({
-      key: "single",
-      title: "Trajeto único",
-      distanceLabel: formatDistance(totalDistance),
-      durationLabel: formatDuration(totalDuration),
-      steps,
-    });
+    const result = await fetchOSRMRoute(coords);
+    const latLngs = result?.latLngs ?? coords;
+    webViewRef.current?.injectJavaScript(
+      `window.addRoute(${syntheticId}, ${JSON.stringify(latLngs)}); true;`
+    );
+    if (result) {
+      setRouteMetricsById((prev) => ({
+        ...prev,
+        [syntheticId]: {
+          distanceMeters: result.distanceMeters,
+          durationSeconds: result.durationSeconds,
+          steps: result.steps.map(toPortugueseDirection),
+        },
+      }));
+    }
   }
 
   function handlePointPress(index: number) {
     if (index < 0 || index >= points.length) return;
     const point = points[index];
     if (selectedIndex === null) {
-      // First selection
       setSelectedIndex(index);
-      webViewRef.current?.injectJavaScript(
-        `window.focusPoint(${point.latitude}, ${point.longitude}); true;`
-      );
+      webViewRef.current?.injectJavaScript(`window.focusPoint(${point.latitude}, ${point.longitude}); true;`);
     } else if (selectedIndex === index) {
-      // Deselect
       setSelectedIndex(null);
     } else {
-      // Second selection — draw route, keep new point selected for chaining
-      const from = points[selectedIndex];
-      const alreadyExists = routeList.some(
-        (r) =>
-          (r.from === from.title && r.to === point.title) ||
-          (r.from === point.title && r.to === from.title)
-      );
-      // Set new point as the selected origin for the next route
-      setSelectedIndex(index);
-      webViewRef.current?.injectJavaScript(
-        `window.focusPoint(${point.latitude}, ${point.longitude}); true;`
-      );
-      if (alreadyExists) return;
-      const id = ++routeCounter.current;
-      webViewRef.current?.injectJavaScript(
-        `window.addRoute(${id}, ${from.latitude}, ${from.longitude}, ${point.latitude}, ${point.longitude}); true;`
-      );
-      setRouteList((prev) => [...prev, { id, from: from.title, to: point.title }]);
-      if (!showRoutes) {
-        setShowRoutes(true);
-      }
+      createRouteBetweenPoints(selectedIndex, index);
+      setSelectedIndex(null);
     }
-  }
-
-  function removeRoute(id: number) {
-    webViewRef.current?.injectJavaScript(`window.removeRoute(${id}); true;`);
-    setRouteList((prev) => prev.filter((r) => r.id !== id));
-    setRouteMetricsById((prev) => {
-      const next = { ...prev };
-      delete next[id];
-      return next;
-    });
-    setSelectedRouteCard(null);
   }
 
   function toggleRoutes(value: boolean) {
@@ -374,17 +656,81 @@ export default function MapaScreen() {
     webViewRef.current?.injectJavaScript(`window.setBaseLayer('${mode}'); true;`);
   }
 
-  const [singleRoute, setSingleRoute] = useState(false);
+  useEffect(() => {
+    setIsMapReady(false);
+    hasBootstrappedRoutes.current = false;
+    setRouteList([]);
+    setRouteDrawnCount(0);
+    setRouteMetricsById({});
+    setIsRoutesScreenOpen(false);
+    setExpandedRouteId(null);
+    setSelectedRouteId(null);
+  }, [resolvedRoutes]);
+
+  useEffect(() => {
+    if (!isMapReady || hasBootstrappedRoutes.current) return;
+    hasBootstrappedRoutes.current = true;
+    const controller = new AbortController();
+    for (const route of resolvedRoutesRef.current) {
+      (async () => {
+        const result = await fetchOSRMRoute(route.coordinates, controller.signal);
+        if (controller.signal.aborted) return;
+        const latLngs = result?.latLngs ?? route.coordinates;
+        webViewRef.current?.injectJavaScript(
+          `window.addRoute(${route.id}, ${JSON.stringify(latLngs)}); true;`
+        );
+        if (result) {
+          setRouteMetricsById((prev) => ({
+            ...prev,
+            [route.id]: {
+              distanceMeters: result.distanceMeters,
+              durationSeconds: result.durationSeconds,
+              steps: result.steps.map(toPortugueseDirection),
+            },
+          }));
+        }
+      })();
+    }
+    return () => { controller.abort(); };
+  }, [isMapReady]);
+
+  useEffect(() => {
+    if (!isMapReady) return;
+
+    if (selectedRouteId === null) {
+      webViewRef.current?.injectJavaScript("window.clearSelectedRoute(); true;");
+      return;
+    }
+
+    webViewRef.current?.injectJavaScript(`window.selectRoute(${selectedRouteId}); true;`);
+  }, [isMapReady, routeDrawnCount, selectedRouteId]);
+
+  const mapHtml = useMemo(
+    () => buildMapHtml(points, resolvedRoutes, {
+      background: colors.background,
+      foreground: colors.foreground,
+      card: colors.card,
+      border: colors.border,
+      primary: colors.primary,
+      primaryForeground: colors.primaryForeground,
+      mutedForeground: colors.mutedForeground,
+      overlay: colors.overlay,
+      softOverlay: colors.softOverlay,
+      accentSoft: colors.accentSoft,
+    }),
+    [colors.accentSoft, colors.background, colors.border, colors.card, colors.foreground, colors.mutedForeground, colors.overlay, colors.primary, colors.primaryForeground, colors.softOverlay, points, resolvedRoutes]
+  );
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <View style={styles.mapWrapper}>
         <WebView
           ref={webViewRef}
           style={styles.map}
-          source={{ html: buildMapHtml(points) }}
+          source={{ html: mapHtml }}
           originWhitelist={["*"]}
           javaScriptEnabled
+          onLoadEnd={() => setIsMapReady(true)}
           onShouldStartLoadWithRequest={(request) => {
             const isMapDocument =
               request.url === "about:blank" || request.url.startsWith("data:text/html");
@@ -413,13 +759,28 @@ export default function MapaScreen() {
                   [routeInfo.id]: {
                     distanceMeters: Number(routeInfo.distanceMeters) || 0,
                     durationSeconds: Number(routeInfo.durationSeconds) || 0,
-                    steps: Array.isArray(routeInfo.steps)
+                    // Preserve existing steps when the WebView reports empty steps
+                    // (window.addRoute always sends steps:[] — RN-side OSRM sets real steps)
+                    steps: Array.isArray(routeInfo.steps) && routeInfo.steps.length > 0
                       ? routeInfo.steps
                           .filter((step: unknown) => typeof step === "string")
                           .map((step: string) => toPortugueseDirection(step))
-                      : [],
+                      : (prev[routeInfo.id]?.steps ?? []),
                   },
                 }));
+              } else if (data.routeDeselected) {
+                setSelectedRouteId(null);
+              } else if (data.routeSelected !== undefined) {
+                const routeId = Number(data.routeSelected);
+                if (!Number.isFinite(routeId)) return;
+                const selectedRoute =
+                  resolvedRoutesRef.current.find((route) => route.id === routeId) ??
+                  routeListRef.current.find((route) => route.id === routeId);
+                if (!selectedRoute) return;
+                setRouteList((prev) => (prev.some((route) => route.id === routeId) ? prev : [...prev, selectedRoute]));
+                openRouteDetails(selectedRoute);
+              } else if (data.routeRendered !== undefined) {
+                setRouteDrawnCount((prev) => prev + 1);
               } else {
                 setCoords({ lat: data.lat, lng: data.lng });
               }
@@ -430,216 +791,326 @@ export default function MapaScreen() {
         {canGoBackInMap && hasOpenedMapLink && (
           <TouchableOpacity
             style={[styles.mapBackButton, { top: top + 8 }]}
-            onPress={() => webViewRef.current?.goBack()}
             activeOpacity={0.8}
           >
-            <Feather name="arrow-left" size={18} color="#f8fafc" />
+            <Feather name="arrow-left" size={18} color={colors.foreground} />
           </TouchableOpacity>
         )}
 
-        <View style={styles.crosshairDot} pointerEvents="none" />
+        <View style={[styles.crosshairDot, { borderColor: colors.primary }]} pointerEvents="none" />
 
         <View style={[styles.fabRow, { top: top + 8 }]}>
           <TouchableOpacity
-            style={[styles.fabButton, isLayersMenuOpen && styles.fabButtonActive]}
+            style={[styles.fabButton, { backgroundColor: colors.overlay, borderColor: colors.border }, isLayersMenuOpen && [styles.fabButtonActive, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]]}
             onPress={() => {
               setIsLayersMenuOpen((prev) => !prev);
               setIsRoutesMenuOpen(false);
             }}
             activeOpacity={0.8}
           >
-            <Feather name="layers" size={18} color="#f8fafc" />
+            <Feather name="layers" size={18} color={colors.foreground} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.fabButton, isRoutesMenuOpen && styles.fabButtonActive]}
+            style={[styles.fabButton, { backgroundColor: colors.overlay, borderColor: colors.border }, isRoutesMenuOpen && [styles.fabButtonActive, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]]}
             onPress={() => {
               setIsRoutesMenuOpen((prev) => !prev);
               setIsLayersMenuOpen(false);
             }}
             activeOpacity={0.8}
           >
-            <Feather name="sliders" size={18} color="#f8fafc" />
+            <Feather name="sliders" size={18} color={colors.foreground} />
           </TouchableOpacity>
+
+          {routeList.length > 0 && (
+            <TouchableOpacity
+              style={[styles.routesCountFab, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]}
+              onPress={() => {
+                setIsLayersMenuOpen(false);
+                setIsRoutesMenuOpen(false);
+                setIsRoutesScreenOpen(true);
+              }}
+              activeOpacity={0.8}
+            >
+              <Feather name="list" size={16} color={colors.primaryForeground} />
+              <Text style={[styles.routesCountFabText, { color: colors.primaryForeground }]}>{routeList.length}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {isLayersMenuOpen && (
-          <View style={[styles.floatingPanel, { top: top + 56 }]}>
-            <Text style={styles.floatingPanelTitle}>Visão do mapa</Text>
+          <View style={[styles.floatingPanel, { top: top + 56, backgroundColor: colors.overlay, borderColor: colors.border }]}> 
+            <Text style={[styles.floatingPanelTitle, { color: colors.mutedForeground }]}>Visão do mapa</Text>
 
             <TouchableOpacity
-              style={[styles.layerOption, mapViewMode === "satellite" && styles.layerOptionActive]}
+              style={[styles.layerOption, { backgroundColor: colors.card }, mapViewMode === "satellite" && [styles.layerOptionActive, { backgroundColor: colors.primary }]]}
               onPress={() => setBaseLayer("satellite")}
               activeOpacity={0.8}
             >
-              <Text style={styles.layerOptionText}>Satélite</Text>
-              {mapViewMode === "satellite" && <Feather name="check" size={16} color="#f8fafc" />}
+              <Text style={[styles.layerOptionText, { color: mapViewMode === "satellite" ? colors.primaryForeground : colors.foreground }]}>Satélite</Text>
+              {mapViewMode === "satellite" && <Feather name="check" size={16} color={colors.primaryForeground} />}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.layerOption, mapViewMode === "topographic" && styles.layerOptionActive]}
+              style={[styles.layerOption, { backgroundColor: colors.card }, mapViewMode === "topographic" && [styles.layerOptionActive, { backgroundColor: colors.primary }]]}
               onPress={() => setBaseLayer("topographic")}
               activeOpacity={0.8}
             >
-              <Text style={styles.layerOptionText}>Topográfico</Text>
-              {mapViewMode === "topographic" && <Feather name="check" size={16} color="#f8fafc" />}
+              <Text style={[styles.layerOptionText, { color: mapViewMode === "topographic" ? colors.primaryForeground : colors.foreground }]}>Topográfico</Text>
+              {mapViewMode === "topographic" && <Feather name="check" size={16} color={colors.primaryForeground} />}
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.layerOption, mapViewMode === "streets" && styles.layerOptionActive]}
+              style={[styles.layerOption, { backgroundColor: colors.card }, mapViewMode === "streets" && [styles.layerOptionActive, { backgroundColor: colors.primary }]]}
               onPress={() => setBaseLayer("streets")}
               activeOpacity={0.8}
             >
-              <Text style={styles.layerOptionText}>Ruas</Text>
-              {mapViewMode === "streets" && <Feather name="check" size={16} color="#f8fafc" />}
+              <Text style={[styles.layerOptionText, { color: mapViewMode === "streets" ? colors.primaryForeground : colors.foreground }]}>Ruas</Text>
+              {mapViewMode === "streets" && <Feather name="check" size={16} color={colors.primaryForeground} />}
             </TouchableOpacity>
           </View>
         )}
 
         {isRoutesMenuOpen && (
-          <View style={[styles.floatingPanel, { top: top + 56 }]}>
-            <Text style={styles.floatingPanelTitle}>Trajetos</Text>
+          <View style={[styles.floatingPanel, { top: top + 56, backgroundColor: colors.overlay, borderColor: colors.border }]}> 
+            <Text style={[styles.floatingPanelTitle, { color: colors.mutedForeground }]}>Trajetos</Text>
 
-            <View style={styles.switchRow}>
-              <Text style={styles.toggleLabel}>Mostrar trajetos</Text>
+            <View style={[styles.switchRow, { backgroundColor: colors.card }]}> 
+              <Text style={[styles.toggleLabel, { color: colors.foreground }]}>Mostrar trajetos</Text>
               <Switch
                 value={showRoutes}
                 onValueChange={toggleRoutes}
-                trackColor={{ false: "rgba(255,255,255,0.15)", true: "#dc2626" }}
-                thumbColor="#ffffff"
-                ios_backgroundColor="rgba(255,255,255,0.15)"
+                trackColor={{ false: colors.muted, true: colors.primary }}
+                thumbColor={colors.primaryForeground}
+                ios_backgroundColor={colors.muted}
                 style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
               />
             </View>
 
-            <View style={styles.switchRow}>
-              <Text style={styles.toggleLabel}>Trajeto único</Text>
-              <Switch
-                value={singleRoute}
-                onValueChange={setSingleRoute}
-                trackColor={{ false: "rgba(255,255,255,0.15)", true: "#dc2626" }}
-                thumbColor="#ffffff"
-                ios_backgroundColor="rgba(255,255,255,0.15)"
-                style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
-              />
-            </View>
           </View>
         )}
       </View>
 
       <View style={{ flex: 1, position: 'relative', paddingBottom: tabBarHeight }}>
-        <View style={styles.listContainer}>
-          <Text style={styles.listHeader}>Pontos em destaque</Text>
-          {isLoadingPoints && <Text style={styles.listStatus}>A carregar pontos...</Text>}
-          {pointsError && <Text style={styles.listStatus}>{pointsError}</Text>}
-          {!isLoadingPoints && !pointsError && points.length === 0 && (
-            <Text style={styles.listStatus}>Sem pontos disponíveis.</Text>
-          )}
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {points.map((point, index) => (
-              <TouchableOpacity
-                key={`${point.title}-${index}`}
-                style={[styles.listItem, selectedIndex === index && styles.listItemSelected]}
-                onPress={() => handlePointPress(index)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.dot, selectedIndex === index && styles.dotSelected]} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.listTitle}>{point.title}</Text>
-                  <Text style={styles.listDetail}>
-                    {selectedIndex === index ? "Selecionar destino..." : point.detail}
-                  </Text>
+        <View style={[styles.listContainer, { backgroundColor: colors.background }]}> 
+          <View style={[styles.bottomTabs, { backgroundColor: colors.muted }]}> 
+            <TouchableOpacity
+              style={[styles.bottomTab, bottomTab === 'points' && [styles.bottomTabActive, { backgroundColor: colors.primary }]]}
+              onPress={() => setBottomTab('points')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.bottomTabText, { color: colors.mutedForeground }, bottomTab === 'points' && [styles.bottomTabTextActive, { color: colors.primaryForeground }]]}>Pontos</Text>
+              {points.length > 0 && (
+                <View style={[styles.tabBadge, { backgroundColor: bottomTab === 'points' ? colors.softOverlay : colors.accentSoft }]}>
+                  <Text style={[styles.tabBadgeText, { color: bottomTab === 'points' ? colors.primaryForeground : colors.foreground }]}>{points.length}</Text>
                 </View>
-              </TouchableOpacity>
-            ))}
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.bottomTab, bottomTab === 'routes' && [styles.bottomTabActive, { backgroundColor: colors.primary }]]}
+              onPress={() => setBottomTab('routes')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.bottomTabText, { color: colors.mutedForeground }, bottomTab === 'routes' && [styles.bottomTabTextActive, { color: colors.primaryForeground }]]}>Trajetos</Text>
+              {resolvedRoutes.length > 0 && (
+                <View style={[styles.tabBadge, { backgroundColor: bottomTab === 'routes' ? colors.softOverlay : colors.accentSoft }]}>
+                  <Text style={[styles.tabBadgeText, { color: bottomTab === 'routes' ? colors.primaryForeground : colors.foreground }]}>{resolvedRoutes.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+          {(isLoadingPoints || isLoadingRoutes) && <Text style={[styles.listStatus, { color: colors.mutedForeground }]}>A carregar pontos e trajetos...</Text>}
+          {pointsError && <Text style={[styles.listStatus, { color: colors.destructive }]}>{pointsError}</Text>}
+          {routesError && !pointsError && <Text style={[styles.listStatus, { color: colors.destructive }]}>{routesError}</Text>}
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {bottomTab === 'points' && (
+              <>
+                {!isLoadingPoints && !pointsError && points.length === 0 && (
+                  <Text style={[styles.listStatus, { color: colors.mutedForeground }]}>Sem pontos disponíveis.</Text>
+                )}
+                {points.map((point, index) => (
+                  <TouchableOpacity
+                    key={`${point.title}-${index}`}
+                    style={[styles.listItem, { backgroundColor: colors.card }, selectedIndex === index && [styles.listItemSelected, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]]}
+                    onPress={() => handlePointPress(index)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.dot, { backgroundColor: colors.primary }, selectedIndex === index && [styles.dotSelected, { backgroundColor: colors.primaryForeground }]]} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.listTitle, { color: colors.foreground }]}>{point.title}</Text>
+                      <Text style={[styles.listDetail, { color: selectedIndex === index ? colors.primaryForeground : colors.mutedForeground }]}>
+                        {selectedIndex === index ? "Selecionar destino..." : point.detail}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
+            {bottomTab === 'routes' && (
+              <>
+                {!isLoadingRoutes && !routesError && resolvedRoutes.length === 0 && (
+                  <Text style={[styles.listStatus, { color: colors.mutedForeground }]}>Sem trajetos disponíveis.</Text>
+                )}
+                {resolvedRoutes.map((route) => {
+                  const isSelected = selectedRouteId === route.id;
+                  const metrics = routeMetricsById[route.id];
+                  return (
+                    <TouchableOpacity
+                      key={route.id}
+                      style={[styles.listItem, { backgroundColor: colors.card }, isSelected && [styles.listItemSelected, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]]}
+                      onPress={() => {
+                        setSelectedRouteId(route.id);
+                        webViewRef.current?.injectJavaScript(`window.selectRoute(${route.id}); true;`);
+                        setRouteList((prev) =>
+                          prev.some((r) => r.id === route.id) ? prev : [...prev, route]
+                        );
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Feather
+                        name="navigation"
+                        size={14}
+                        color={isSelected ? colors.primaryForeground : colors.primary}
+                        style={{ marginTop: 1 }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.listTitle, { color: colors.foreground }]}>{route.name}</Text>
+                        <Text style={[styles.listDetail, { color: isSelected ? colors.primaryForeground : colors.mutedForeground }]}>
+                          {metrics
+                            ? `${formatDistance(metrics.distanceMeters)}  •  ${formatDuration(metrics.durationSeconds)}`
+                            : 'A calcular...'}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </>
+            )}
           </ScrollView>
         </View>
 
-        {routeList.length > 0 && (
-          <View style={styles.routesContainer}>
-            <Text style={styles.listHeader}>Trajetos criados</Text>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {singleRoute ? (
-                <TouchableOpacity style={styles.routeItem} activeOpacity={0.75} onPress={openSingleRouteDetails}>
-                  <Feather name="navigation" size={14} color="#dc2626" style={{ marginTop: 1 }} />
-                  <Text style={styles.routeText} numberOfLines={1}>
-                    {routeList.map(r => r.from).concat(routeList.length ? [routeList[routeList.length-1].to] : []).filter((v,i,a)=>a.indexOf(v)===i).join(" → ")}
-                  </Text>
-                  <TouchableOpacity onPress={(e) => {
-                    e.stopPropagation();
-                    setRouteList([]);
-                    setRouteMetricsById({});
-                    setSelectedRouteCard(null);
-                    webViewRef.current?.injectJavaScript("window.clearRoutes(); true;");
-                  }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Feather name="x" size={16} color="rgba(255,255,255,0.5)" />
-                  </TouchableOpacity>
-                </TouchableOpacity>
-              ) : (
-                routeList.map((route) => (
-                  <TouchableOpacity key={route.id} style={styles.routeItem} activeOpacity={0.75} onPress={() => openRouteDetails(route)}>
-                    <Feather name="navigation" size={14} color="#dc2626" style={{ marginTop: 1 }} />
-                    <Text style={styles.routeText} numberOfLines={1}>
-                      {route.from} → {route.to}
-                    </Text>
-                    <TouchableOpacity onPress={(e) => { e.stopPropagation(); removeRoute(route.id); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                      <Feather name="x" size={16} color="rgba(255,255,255,0.5)" />
-                    </TouchableOpacity>
-                  </TouchableOpacity>
-                ))
+        <Modal
+          visible={isRoutesScreenOpen}
+          animationType="slide"
+          onRequestClose={() => setIsRoutesScreenOpen(false)}
+        >
+          <View style={[styles.routesScreen, { backgroundColor: colors.background }]}> 
+            <View style={[styles.routesScreenHeader, { paddingTop: top + 16, borderBottomColor: colors.border }]}> 
+              <TouchableOpacity
+                style={[styles.routesScreenBackBtn, { backgroundColor: colors.card }]}
+                onPress={() => setIsRoutesScreenOpen(false)}
+                activeOpacity={0.7}
+              >
+                <Feather name="arrow-left" size={20} color={colors.foreground} />
+              </TouchableOpacity>
+              <Text style={[styles.routesScreenTitle, { color: colors.foreground }]}>Trajetos Selecionados</Text>
+              {routeList.length > 0 && (
+                <View style={[styles.routesScreenBadge, { backgroundColor: colors.primary }]}> 
+                  <Text style={[styles.routesScreenBadgeText, { color: colors.primaryForeground }]}>{routeList.length}</Text>
+                </View>
               )}
-            </ScrollView>
-          </View>
-        )}
-
-        {selectedRouteCard !== null && (
-          <TouchableOpacity
-            style={styles.routeDetailOverlay}
-            onPress={() => setSelectedRouteCard(null)}
-            activeOpacity={1}
-          >
-            <View style={styles.routeDetailCard}>
-              <View style={styles.detailCardHandle} />
-              <Text style={styles.routeDetailTitle}>{selectedRouteCard.title}</Text>
-              <Text style={styles.routeDetailMeta}>Distância: {selectedRouteCard.distanceLabel}</Text>
-              <Text style={styles.routeDetailMeta}>Duração: {selectedRouteCard.durationLabel}</Text>
-              <Text style={styles.routeDirectionsHeader}>Direções</Text>
-              <ScrollView style={styles.routeDirectionsList} showsVerticalScrollIndicator={false}>
-                {selectedRouteCard.steps.map((step, index) => (
-                  <Text key={`${selectedRouteCard.key}-${index}`} style={styles.routeDirectionText}>
-                    {index + 1}. {step}
-                  </Text>
-                ))}
-              </ScrollView>
             </View>
-          </TouchableOpacity>
-        )}
+
+            {routeList.length === 0 ? (
+              <View style={styles.routesScreenEmpty}>
+                <Feather name="map" size={40} color={colors.iconMuted} />
+                <Text style={[styles.routesScreenEmptyText, { color: colors.mutedForeground }]}> 
+                  Clica numa rota no mapa para a selecionar.
+                </Text>
+              </View>
+            ) : (
+              <ScrollView
+                style={styles.routesScreenList}
+                contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+                showsVerticalScrollIndicator={false}
+              >
+                {routeList.map((route) => {
+                  const metrics = routeMetricsById[route.id];
+                  const isExpanded = expandedRouteId === route.id;
+                  return (
+                    <View key={route.id} style={[styles.routeCard, { backgroundColor: colors.card, borderColor: colors.border }, isExpanded && [styles.routeCardExpanded, { borderColor: colors.primary }]]}>
+                      <TouchableOpacity
+                        style={styles.routeCardHeader}
+                        onPress={() => {
+                          const next = isExpanded ? null : route.id;
+                          setExpandedRouteId(next);
+                          if (next !== null) {
+                            setSelectedRouteId(route.id);
+                            webViewRef.current?.injectJavaScript(`window.selectRoute(${route.id}); true;`);
+                          }
+                        }}
+                        activeOpacity={0.75}
+                      >
+                        <Feather name="navigation" size={16} color={colors.primary} style={{ marginTop: 2 }} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.routeCardName, { color: colors.foreground }]}>{route.name}</Text>
+                          <Text style={[styles.routeCardMeta, { color: colors.mutedForeground }]}>
+                            {metrics
+                              ? `${formatDistance(metrics.distanceMeters)}  •  ${formatDuration(metrics.durationSeconds)}`
+                              : "A calcular..."}
+                          </Text>
+                        </View>
+                        <Feather
+                          name={isExpanded ? "chevron-up" : "chevron-down"}
+                          size={16}
+                            color={colors.iconMuted}
+                        />
+                        <TouchableOpacity
+                          onPress={() => {
+                            setRouteList((prev) => prev.filter((r) => r.id !== route.id));
+                            if (expandedRouteId === route.id) setExpandedRouteId(null);
+                            if (selectedRouteId === route.id) setSelectedRouteId(null);
+                            webViewRef.current?.injectJavaScript(`window.removeRoute(${route.id}); true;`);
+                          }}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          activeOpacity={0.7}
+                          style={{ marginLeft: 4 }}
+                        >
+                          <Feather name="x" size={16} color={colors.iconMuted} />
+                        </TouchableOpacity>
+                      </TouchableOpacity>
+
+                      {isExpanded && (
+                        <View style={[styles.routeCardDirections, { borderTopColor: colors.border }]}> 
+                          <Text style={[styles.routeDirectionsLabel, { color: colors.mutedForeground }]}>Direções</Text>
+                          {!metrics ? (
+                            <Text style={[styles.routeDirectionText, { color: colors.foreground }]}>A carregar direções...</Text>
+                          ) : metrics.steps.length === 0 ? (
+                            <Text style={[styles.routeDirectionText, { color: colors.foreground }]}>Sem direções disponíveis.</Text>
+                          ) : (
+                            metrics.steps.map((step, i) => (
+                              <Text key={i} style={[styles.routeDirectionText, { color: colors.foreground }]}>
+                                {i + 1}. {step}
+                              </Text>
+                            ))
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            )}
+          </View>
+        </Modal>
 
         {longPressedIndex !== null && points[longPressedIndex] && (
           <TouchableOpacity
-            style={styles.detailCardOverlay}
+            style={[styles.detailCardOverlay, { backgroundColor: colors.background }]}
             onPress={() => setLongPressedIndex(null)}
             activeOpacity={1}
           >
             <View style={styles.detailCardHandle} />
-            <Text style={styles.detailCardTitle}>{points[longPressedIndex].title}</Text>
-            <Text style={styles.detailCardDetail}>{points[longPressedIndex].detail}</Text>
+            <Text style={[styles.detailCardTitle, { color: colors.foreground }]}>{points[longPressedIndex].title}</Text>
+            <Text style={[styles.detailCardDetail, { color: colors.mutedForeground }]}>{points[longPressedIndex].detail}</Text>
             <View style={styles.detailCardActions}>
               <TouchableOpacity
-                style={[styles.detailCardBtn, styles.detailCardBtnSecondary]}
+                style={[styles.detailCardBtn, styles.detailCardBtnPrimary, { backgroundColor: colors.primary }]}
                 onPress={(e) => { e.stopPropagation(); }}
                 activeOpacity={0.75}
               >
-                <Feather name="heart" size={16} color="#f8fafc" />
-                <Text style={styles.detailCardBtnText}>Adicionar aos favoritos</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.detailCardBtn, styles.detailCardBtnPrimary]}
-                onPress={(e) => { e.stopPropagation(); }}
-                activeOpacity={0.75}
-              >
-                <Feather name="eye" size={16} color="#f8fafc" />
-                <Text style={styles.detailCardBtnText}>Visualizar 360º</Text>
+                <Feather name="eye" size={16} color={colors.primaryForeground} />
+                <Text style={[styles.detailCardBtnText, { color: colors.primaryForeground }]}>Visualizar 360º</Text>
               </TouchableOpacity>
             </View>
           </TouchableOpacity>
@@ -827,76 +1298,124 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 1,
   },
-  routesContainer: {
+  routesScreen: {
+    flex: 1,
     backgroundColor: "#0d0000",
-    paddingHorizontal: 20,
-    paddingTop: 4,
-    paddingBottom: 4,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(220,38,38,0.2)",
-    maxHeight: 100,
   },
-  routeItem: {
+  routesScreenHeader: {
     flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(220,38,38,0.2)",
+    gap: 12,
+  },
+  routesScreenBackBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  routesScreenTitle: {
+    flex: 1,
+    color: "#f8fafc",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  routesScreenBadge: {
+    backgroundColor: "#dc2626",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  routesScreenBadgeText: {
+    color: "#f8fafc",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  routesScreenList: {
+    flex: 1,
+  },
+  routesScreenEmpty: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    paddingHorizontal: 40,
+  },
+  routesScreenEmptyText: {
+    color: "rgba(248,250,252,0.4)",
+    fontSize: 15,
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  routeCard: {
     backgroundColor: "#1a0505",
-    borderRadius: 10,
-    padding: 7,
-    marginBottom: 5,
-    gap: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(220,38,38,0.2)",
+    marginBottom: 10,
+    overflow: "hidden",
   },
-  routeText: {
-    flex: 1,
+  routeCardExpanded: {
+    borderColor: "#dc2626",
+  },
+  routeCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    gap: 10,
+  },
+  routeCardName: {
     color: "#f8fafc",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  routeDetailOverlay: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(0,0,0,0.92)",
-    zIndex: 19,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 18,
-  },
-  routeDetailCard: {
-    flex: 1,
-  },
-  routeDetailTitle: {
-    color: "#f8fafc",
-    fontSize: 20,
-    fontWeight: "800",
-    marginBottom: 8,
-  },
-  routeDetailMeta: {
-    color: "rgba(248,250,252,0.8)",
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  routeDirectionsHeader: {
-    color: "rgba(248,250,252,0.6)",
+  routeCardMeta: {
+    color: "rgba(248,250,252,0.55)",
+    fontSize: 12,
+  },
+  routeCardDirections: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(220,38,38,0.15)",
+    paddingTop: 10,
+  },
+  routeDirectionsLabel: {
+    color: "rgba(248,250,252,0.5)",
     fontSize: 10,
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 1.5,
-    marginTop: 10,
     marginBottom: 8,
-  },
-  routeDirectionsList: {
-    flex: 1,
   },
   routeDirectionText: {
     color: "#f8fafc",
     fontSize: 13,
     lineHeight: 18,
     marginBottom: 6,
+  },
+  routesCountFab: {
+    height: 40,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+    backgroundColor: "#dc2626",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
+  },
+  routesCountFabText: {
+    color: "#f8fafc",
+    fontSize: 13,
+    fontWeight: "700",
   },
   detailCardOverlay: {
     position: "absolute",
@@ -956,6 +1475,45 @@ const styles = StyleSheet.create({
   detailCardBtnText: {
     color: "#f8fafc",
     fontSize: 13,
+    fontWeight: "700",
+  },
+  bottomTabs: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 8,
+    gap: 4,
+  },
+  bottomTab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 6,
+  },
+  bottomTabActive: {
+    backgroundColor: "#dc2626",
+  },
+  bottomTabText: {
+    color: "rgba(248,250,252,0.5)",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  bottomTabTextActive: {
+    color: "#f8fafc",
+  },
+  tabBadge: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+  },
+  tabBadgeText: {
+    color: "#f8fafc",
+    fontSize: 10,
     fontWeight: "700",
   },
 });
