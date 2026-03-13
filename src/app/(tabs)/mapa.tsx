@@ -28,8 +28,11 @@ async function fetchOSRMRoute(
   coordinates: [number, number][],
   signal?: AbortSignal
 ): Promise<{ latLngs: [number, number][]; distanceMeters: number; durationSeconds: number; steps: string[] } | null> {
-  try {
-    const coordStr = coordinates.map(([lat, lng]) => `${lng},${lat}`).join(';');
+  async function requestOSRM(
+    coords: [number, number][]
+  ): Promise<{ latLngs: [number, number][]; distanceMeters: number; durationSeconds: number; steps: string[] } | null> {
+    if (coords.length < 2) return null;
+    const coordStr = coords.map(([lat, lng]) => `${lng},${lat}`).join(';');
     const url = `https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson&steps=true`;
     const resp = await fetch(url, signal ? { signal } : undefined);
     if (!resp.ok) return null;
@@ -45,7 +48,73 @@ async function fetchOSRMRoute(
         if (step?.maneuver?.instruction) steps.push(step.maneuver.instruction);
       });
     });
-    return { latLngs, distanceMeters: route.distance ?? 0, durationSeconds: route.duration ?? 0, steps };
+    return {
+      latLngs,
+      distanceMeters: route.distance ?? 0,
+      durationSeconds: route.duration ?? 0,
+      steps,
+    };
+  }
+
+  try {
+    const directRoute = await requestOSRM(coordinates);
+    if (directRoute && directRoute.latLngs.length >= 2) {
+      const snapped = [...directRoute.latLngs];
+      snapped[0] = coordinates[0];
+      snapped[snapped.length - 1] = coordinates[coordinates.length - 1];
+      return {
+        ...directRoute,
+        latLngs: snapped,
+      };
+    }
+
+    if (coordinates.length < 3) {
+      return null;
+    }
+
+    let merged: [number, number][] = [];
+    let totalDistance = 0;
+    let totalDuration = 0;
+    const allSteps: string[] = [];
+
+    for (let index = 1; index < coordinates.length; index += 1) {
+      if (signal?.aborted) return null;
+      const segmentCoords: [number, number][] = [coordinates[index - 1], coordinates[index]];
+      const segment = await requestOSRM(segmentCoords);
+
+      if (!segment || segment.latLngs.length < 2) {
+        merged = [];
+        break;
+      }
+
+      const segmentLatLngs = [...segment.latLngs];
+      segmentLatLngs[0] = segmentCoords[0];
+      segmentLatLngs[segmentLatLngs.length - 1] = segmentCoords[1];
+
+      if (merged.length === 0) {
+        merged = segmentLatLngs;
+      } else {
+        merged = [...merged, ...segmentLatLngs.slice(1)];
+      }
+
+      totalDistance += segment.distanceMeters;
+      totalDuration += segment.durationSeconds;
+      allSteps.push(...segment.steps);
+    }
+
+    if (merged.length < 2) {
+      return null;
+    }
+
+    merged[0] = coordinates[0];
+    merged[merged.length - 1] = coordinates[coordinates.length - 1];
+
+    return {
+      latLngs: merged,
+      distanceMeters: totalDistance,
+      durationSeconds: totalDuration,
+      steps: allSteps,
+    };
   } catch {
     return null;
   }
@@ -71,13 +140,7 @@ function buildMapHtml(
   const markers = points
     .map(
       (p, i) =>
-        `L.circleMarker([${p.latitude}, ${p.longitude}], {
-          radius: 8,
-          color: '${theme.primaryForeground}',
-          weight: 2,
-          fillColor: '${theme.primary}',
-          fillOpacity: 0.95
-        })
+        `L.marker([${p.latitude}, ${p.longitude}], { icon: markerIcon })
           .addTo(map)
           .bindPopup("<div style='min-width:160px'><strong style='display:block;margin-bottom:4px'>${p.title}</strong><span>${p.detail}</span></div>")
           .on('click', function() {
@@ -149,6 +212,29 @@ function buildMapHtml(
     .leaflet-popup-tip {
       background: ${theme.card};
     }
+    .point-pin-wrapper {
+      background: transparent;
+      border: none;
+    }
+    .point-pin {
+      width: 26px;
+      height: 26px;
+      border-radius: 13px 13px 13px 0;
+      transform: rotate(-45deg);
+      background: ${theme.primary};
+      border: 2px solid ${theme.foreground};
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+      position: relative;
+    }
+    .point-pin-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: ${theme.card};
+      position: absolute;
+      top: 7px;
+      left: 7px;
+    }
   </style>
 </head>
 <body>
@@ -183,6 +269,15 @@ function buildMapHtml(
       activeBaseLayer.addTo(map);
     };
     window.setBaseLayer('satellite');
+    var routeColor = '${theme.primary}';
+    var routeColorSelected = '${theme.foreground}';
+    var markerIcon = L.divIcon({
+      className: 'point-pin-wrapper',
+      html: "<div class='point-pin'><div class='point-pin-dot'></div></div>",
+      iconSize: [26, 34],
+      iconAnchor: [13, 34],
+      popupAnchor: [0, -30]
+    });
     ${markers}
     window.focusPoint = function(lat, lng) {
       map.setView([lat, lng], 16, { animate: true });
@@ -197,8 +292,8 @@ function buildMapHtml(
       if (!route || !route.polyline) return;
       route.polyline.setStyle(
         isSelected
-          ? { color: '${theme.primaryForeground}', weight: 6, opacity: 1 }
-          : { color: '${theme.primary}', weight: 4, opacity: 0.85 }
+          ? { color: routeColorSelected, weight: 6, opacity: 1 }
+          : { color: routeColor, weight: 4, opacity: 0.95 }
       );
       if (isSelected) {
         route.polyline.bringToFront();
@@ -259,10 +354,12 @@ function buildMapHtml(
 
       if (routes[id]) { window.removeRoute(id); }
       var polyline = L.polyline(latLngs, {
-        color: '${theme.primary}',
+        color: routeColor,
         weight: 4,
-        opacity: 0.85,
+        opacity: 0.95,
         interactive: true,
+        lineCap: 'round',
+        lineJoin: 'round'
       });
       var hitPolyline = L.polyline(latLngs, { color: '#000000', weight: 20, opacity: 0, interactive: true });
       function onAddRouteClick() {
@@ -340,7 +437,14 @@ function buildMapHtml(
       var _url = 'https://router.project-osrm.org/route/v1/driving/' + _osrmCoords + '?overview=full&geometries=geojson&steps=true';
       function drawPolyline(latLngs, distanceMeters, durationSeconds, steps) {
         if (routes[_id]) { window.removeRoute(_id); }
-        var _polyline = L.polyline(latLngs, { color: '${theme.primaryForeground}', weight: 4, opacity: 0.9, interactive: true });
+        var _polyline = L.polyline(latLngs, {
+          color: routeColor,
+          weight: 4,
+          opacity: 0.95,
+          interactive: true,
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
         var _hitPolyline = L.polyline(latLngs, { color: '#000000', weight: 20, opacity: 0, interactive: true });
         function onRouteClick() {
           ignoreNextMapClick = true;
@@ -385,7 +489,14 @@ function buildMapHtml(
     (function() {
       var _id = ${route.id};
       var _waypoints = ${JSON.stringify(route.coordinates)};
-      var _polyline = L.polyline(_waypoints, { color: '${theme.primary}', weight: 3, opacity: 0.35, dashArray: '6,8', interactive: true });
+      var _polyline = L.polyline(_waypoints, {
+        color: routeColor,
+        weight: 4,
+        opacity: 0.9,
+        interactive: true,
+        lineCap: 'round',
+        lineJoin: 'round'
+      });
       var _hitPolyline = L.polyline(_waypoints, { color: '#000000', weight: 20, opacity: 0, interactive: true });
       function onRouteClick() {
         ignoreNextMapClick = true;
@@ -706,7 +817,7 @@ export default function MapaScreen() {
   }, [isMapReady, routeDrawnCount, selectedRouteId]);
 
   const mapHtml = useMemo(
-    () => buildMapHtml(points, resolvedRoutes, {
+    () => buildMapHtml(points, [], {
       background: colors.background,
       foreground: colors.foreground,
       card: colors.card,
@@ -718,7 +829,7 @@ export default function MapaScreen() {
       softOverlay: colors.softOverlay,
       accentSoft: colors.accentSoft,
     }),
-    [colors.accentSoft, colors.background, colors.border, colors.card, colors.foreground, colors.mutedForeground, colors.overlay, colors.primary, colors.primaryForeground, colors.softOverlay, points, resolvedRoutes]
+    [colors.accentSoft, colors.background, colors.border, colors.card, colors.foreground, colors.mutedForeground, colors.overlay, colors.primary, colors.primaryForeground, colors.softOverlay, points]
   );
 
   return (

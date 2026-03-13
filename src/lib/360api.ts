@@ -76,11 +76,32 @@ export type LandingContent = {
 	description: string;
 };
 
-const BASE_URL = "http://192.168.0.106:3000";
+const BASE_URL = "http://100.68.232.113:3000";
 const POINTS_ENDPOINT = `${BASE_URL}/ponto/list`;
 const ROUTES_ENDPOINT = `${BASE_URL}/trajeto/list`;
 const LOGIN_ENDPOINT = `${BASE_URL}/auth/login`;
 const ME_ENDPOINT = `${BASE_URL}/auth/me`;
+const REQUEST_TIMEOUT_MS = 15000;
+
+async function fetchWithTimeout(
+	input: RequestInfo | URL,
+	init: RequestInit,
+	timeoutMs = REQUEST_TIMEOUT_MS
+): Promise<Response> {
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+	try {
+		return await fetch(input, { ...init, signal: controller.signal });
+	} catch (error) {
+		if (error instanceof Error && error.name === "AbortError") {
+			throw new Error("A ligação ao servidor expirou. Verifique a conexão e tente novamente.");
+		}
+		throw error;
+	} finally {
+		clearTimeout(timeoutId);
+	}
+}
 
 function toMapPoint(ponto: ApiPonto): MapPoint {
 	return {
@@ -309,7 +330,7 @@ export async function loginUser(
 	email: string,
 	password: string
 ): Promise<{ token: string; user: AuthUser }> {
-	const response = await fetch(LOGIN_ENDPOINT, {
+	const response = await fetchWithTimeout(LOGIN_ENDPOINT, {
 		method: "POST",
 		headers: { "Content-Type": "application/json", Accept: "application/json" },
 		body: JSON.stringify({ email, password }),
@@ -337,7 +358,7 @@ export async function loginUser(
 }
 
 export async function getMe(token: string): Promise<AuthUser> {
-	const response = await fetch(ME_ENDPOINT, {
+	const response = await fetchWithTimeout(ME_ENDPOINT, {
 		headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
 	});
 

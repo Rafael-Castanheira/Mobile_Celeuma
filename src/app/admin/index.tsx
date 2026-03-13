@@ -18,13 +18,7 @@ const QUICK_ACTIONS: QuickAction[] = [
 		icon: "map",
 		label: "Mapa",
 		description: "Abrir mapa e explorar galerias",
-		route: "/mapa",
-	},
-	{
-		icon: "users",
-		label: "Utilizadores",
-		description: "Gerir contas e roles",
-		route: "/admin/usuarios",
+		route: "/(tabs)/mapa",
 	},
 	{
 		icon: "map-pin",
@@ -75,7 +69,7 @@ export default function AdminDashboard() {
 			<View style={styles.header}>
 				<View>
 					<BrandLogo size={54} iconSize={24} withFrame />
-					<Text style={[styles.muted, { color: colors.mutedForeground }]}>Painel de Administração</Text>
+					<Text style={[styles.muted, { color: colors.mutedForeground }]}>Área de Administração</Text>
 					<Text style={[styles.title, { color: colors.foreground }]}>
 						Olá, {user?.name?.split(" ")[0] ?? "Admin"} 👋
 					</Text>
