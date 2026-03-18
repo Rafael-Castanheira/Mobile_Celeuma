@@ -206,7 +206,7 @@ export default function TrajetosScreen() {
 										onPress={() => togglePoint(item.id)}
 									>
 										<View style={[styles.pointIndex, { backgroundColor: colors.muted }, selected && [styles.pointIndexSelected, { backgroundColor: colors.primary }]]}>
-											<Text style={styles.pointIndexText}>{selected ? idx + 1 : ""}</Text>
+											<Text style={[styles.pointIndexText, { color: selected ? colors.primaryForeground : colors.mutedForeground }]}>{selected ? idx + 1 : ""}</Text>
 										</View>
 										<Text style={[styles.pointName, { color: colors.mutedForeground }, selected && { color: colors.foreground }]}>{item.title}</Text>
 										{selected && <Feather name="check" size={14} color={colors.primary} />}
@@ -256,7 +256,7 @@ export default function TrajetosScreen() {
 }
 
 const styles = StyleSheet.create({
-	container: { flex: 1, backgroundColor: "#0d0000" },
+	container: { flex: 1 },
 	header: {
 		flexDirection: "row",
 		alignItems: "center",
@@ -264,44 +264,37 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 16,
 		paddingVertical: 14,
 		borderBottomWidth: 1,
-		borderBottomColor: "rgba(255,255,255,0.06)",
 	},
 	backBtn: { padding: 6 },
-	title: { color: "#f8fafc", fontSize: 18, fontWeight: "700" },
+	title: { fontSize: 18, fontWeight: "700" },
 	errorText: { textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
-	emptyText: { color: "#475569", textAlign: "center", marginTop: 40 },
+	emptyText: { textAlign: "center", marginTop: 40 },
 	card: {
-		backgroundColor: "#1a0a0a",
 		borderRadius: 12,
 		padding: 14,
 		borderWidth: 1,
-		borderColor: "rgba(255,255,255,0.07)",
 		flexDirection: "row",
 		alignItems: "center",
 	},
-	cardTitle: { color: "#f8fafc", fontWeight: "600", fontSize: 14 },
-	cardSub: { color: "#94a3b8", fontSize: 12, marginTop: 2 },
+	cardTitle: { fontWeight: "600", fontSize: 14 },
+	cardSub: { fontSize: 12, marginTop: 2 },
 	actions: { flexDirection: "row", gap: 4 },
 	actionBtn: { padding: 8 },
-	modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },
+	modalOverlay: { flex: 1, justifyContent: "flex-end" },
 	modalBox: {
-		backgroundColor: "#1a0a0a",
 		borderTopLeftRadius: 20,
 		borderTopRightRadius: 20,
 		padding: 24,
 		paddingBottom: 40,
 		maxHeight: "85%",
 	},
-	modalTitle: { color: "#f8fafc", fontSize: 18, fontWeight: "700", marginBottom: 16 },
-	label: { color: "#94a3b8", fontSize: 12, marginBottom: 4 },
+	modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 16 },
+	label: { fontSize: 12, marginBottom: 4 },
 	input: {
-		backgroundColor: "rgba(255,255,255,0.06)",
 		borderRadius: 8,
 		padding: 12,
-		color: "#f8fafc",
 		fontSize: 14,
 		borderWidth: 1,
-		borderColor: "rgba(255,255,255,0.1)",
 	},
 	pointList: { maxHeight: 220, marginTop: 4 },
 	pointRow: {
@@ -314,23 +307,21 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: "transparent",
 		marginBottom: 4,
-		backgroundColor: "rgba(255,255,255,0.04)",
 	},
-	pointRowSelected: { borderColor: "rgba(220,38,38,0.4)", backgroundColor: "rgba(220,38,38,0.08)" },
+	pointRowSelected: {},
 	pointIndex: {
 		width: 20,
 		height: 20,
 		borderRadius: 10,
-		backgroundColor: "rgba(255,255,255,0.08)",
 		alignItems: "center",
 		justifyContent: "center",
 	},
-	pointIndexSelected: { backgroundColor: "#dc2626" },
-	pointIndexText: { color: "#fff", fontSize: 10, fontWeight: "700" },
-	pointName: { flex: 1, color: "#94a3b8", fontSize: 13 },
+	pointIndexSelected: {},
+	pointIndexText: { fontSize: 10, fontWeight: "700" },
+	pointName: { flex: 1, fontSize: 13 },
 	modalActions: { flexDirection: "row", gap: 12, marginTop: 20 },
-	cancelBtn: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.06)", alignItems: "center" },
-	cancelText: { color: "#94a3b8", fontWeight: "600" },
-	saveBtn: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: "#dc2626", alignItems: "center" },
-	saveText: { color: "#fff", fontWeight: "700" },
+	cancelBtn: { flex: 1, padding: 14, borderRadius: 10, alignItems: "center" },
+	cancelText: { fontWeight: "600" },
+	saveBtn: { flex: 1, padding: 14, borderRadius: 10, alignItems: "center" },
+	saveText: { fontWeight: "700" },
 });
