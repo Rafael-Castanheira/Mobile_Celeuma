@@ -1,26 +1,11 @@
 import { Feather } from "@expo/vector-icons";
-import { Redirect, Tabs } from "expo-router";
-import { ActivityIndicator, View } from "react-native";
+import { Tabs } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "../../context/AuthContext";
 import { useAppTheme } from "../../context/ThemeContext";
 
 export default function TabsLayout() {
   const { bottom } = useSafeAreaInsets();
   const { colors } = useAppTheme();
-  const { user, isLoadingAuth } = useAuth();
-
-  if (isLoadingAuth) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background }}>
-        <ActivityIndicator color={colors.primary} />
-      </View>
-    );
-  }
-
-  if (!user) {
-    return <Redirect href="/login" />;
-  }
 
   const tabBarStyle = {
     backgroundColor: colors.background,
@@ -40,7 +25,7 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.iconMuted,
+        tabBarInactiveTintColor: colors.tabInactive,
         tabBarShowLabel: false,
         tabBarStyle,
         tabBarIconStyle: { marginTop: -20 },

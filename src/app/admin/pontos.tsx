@@ -122,20 +122,20 @@ export default function PontosScreen() {
 
 	function renderPoint({ item }: { item: MapPoint }) {
 		return (
-			<View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+			<View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}> 
 				<View style={{ flex: 1 }}>
-					<Text style={[styles.cardTitle, { color: colors.foreground }]}>{item.title}</Text>
-					<Text style={[styles.cardSub, { color: colors.mutedForeground }]}>{item.detail}</Text>
-					<Text style={[styles.cardCoords, { color: colors.iconMuted }]}>
+					<Text style={[styles.cardTitle, { color: colors.text }]}>{item.title}</Text>
+					<Text style={[styles.cardSub, { color: colors.textMuted }]}>{item.detail}</Text>
+					<Text style={[styles.cardCoords, { color: colors.textSubtle }]}>
 						{item.latitude.toFixed(5)}, {item.longitude.toFixed(5)}
 					</Text>
 				</View>
 				<View style={styles.actions}>
 					<Pressable style={styles.actionBtn} onPress={() => openEdit(item)}>
-						<Feather name="edit-2" size={16} color={colors.iconMuted} />
+						<Feather name="edit-2" size={16} color={colors.textMuted} />
 					</Pressable>
 					<Pressable style={styles.actionBtn} onPress={() => confirmDelete(item)}>
-						<Feather name="trash-2" size={16} color={colors.destructive} />
+						<Feather name="trash-2" size={16} color={colors.danger} />
 					</Pressable>
 				</View>
 			</View>
@@ -143,19 +143,19 @@ export default function PontosScreen() {
 	}
 
 	return (
-		<View style={[styles.container, { backgroundColor: colors.background, paddingTop: top }]}>
-			<View style={[styles.header, { borderBottomColor: colors.border }]}>
+		<View style={[styles.container, { paddingTop: top, backgroundColor: colors.background }]}> 
+			<View style={[styles.header, { borderBottomColor: colors.borderSoft }]}> 
 				<Pressable onPress={() => router.back()} style={styles.backBtn}>
-					<Feather name="arrow-left" size={20} color={colors.foreground} />
+					<Feather name="arrow-left" size={20} color={colors.text} />
 				</Pressable>
-				<Text style={[styles.title, { color: colors.foreground }]}>Pontos</Text>
+				<Text style={[styles.title, { color: colors.text }]}>Pontos</Text>
 				<Pressable onPress={openCreate} style={styles.backBtn}>
-					<Feather name="plus" size={22} color={colors.foreground} />
+					<Feather name="plus" size={22} color={colors.text} />
 				</Pressable>
 			</View>
 
 			{loading && <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />}
-			{!loading && error && <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>}
+			{!loading && error && <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>}
 			{!loading && !error && (
 				<FlatList
 					data={points}
@@ -167,64 +167,64 @@ export default function PontosScreen() {
 			)}
 
 			<Modal visible={modalVisible} animationType="slide" transparent>
-				<View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
-					<View style={[styles.modalBox, { backgroundColor: colors.card }]}> 
-						<Text style={[styles.modalTitle, { color: colors.foreground }]}>{editing ? "Editar ponto" : "Novo ponto"}</Text>
+				<View style={styles.modalOverlay}>
+					<View style={[styles.modalBox, { backgroundColor: colors.surface }]}> 
+						<Text style={[styles.modalTitle, { color: colors.text }]}>{editing ? "Editar ponto" : "Novo ponto"}</Text>
 
-						<Text style={[styles.label, { color: colors.mutedForeground }]}>Nome *</Text>
+						<Text style={[styles.label, { color: colors.textMuted }]}>Nome *</Text>
 						<TextInput
-							style={[styles.input, { backgroundColor: colors.secondary, color: colors.foreground, borderColor: colors.border }]}
+							style={[styles.input, { backgroundColor: colors.input, color: colors.text, borderColor: colors.borderSoft }]}
 							value={form.name}
 							onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
 							placeholder="Nome do ponto"
-							placeholderTextColor={colors.placeholder}
+							placeholderTextColor={colors.textSubtle}
 						/>
 
-						<Text style={[styles.label, { color: colors.mutedForeground }]}>Descrição</Text>
+						<Text style={[styles.label, { color: colors.textMuted }]}>Descrição</Text>
 						<TextInput
-							style={[styles.input, { backgroundColor: colors.secondary, color: colors.foreground, borderColor: colors.border, height: 72, textAlignVertical: "top" }]}
+							style={[styles.input, { height: 72, textAlignVertical: "top", backgroundColor: colors.input, color: colors.text, borderColor: colors.borderSoft }]}
 							value={form.description}
 							onChangeText={(v) => setForm((f) => ({ ...f, description: v }))}
 							placeholder="Descrição (opcional)"
-							placeholderTextColor={colors.placeholder}
+							placeholderTextColor={colors.textSubtle}
 							multiline
 						/>
 
 						<View style={styles.row}>
 							<View style={{ flex: 1 }}>
-								<Text style={[styles.label, { color: colors.mutedForeground }]}>Latitude *</Text>
+								<Text style={[styles.label, { color: colors.textMuted }]}>Latitude *</Text>
 								<TextInput
-									style={[styles.input, { backgroundColor: colors.secondary, color: colors.foreground, borderColor: colors.border }]}
+									style={[styles.input, { backgroundColor: colors.input, color: colors.text, borderColor: colors.borderSoft }]}
 									value={form.latitude}
 									onChangeText={(v) => setForm((f) => ({ ...f, latitude: v }))}
 									placeholder="0.00000"
-									placeholderTextColor={colors.placeholder}
+									placeholderTextColor={colors.textSubtle}
 									keyboardType="numeric"
 								/>
 							</View>
 							<View style={{ width: 12 }} />
 							<View style={{ flex: 1 }}>
-								<Text style={[styles.label, { color: colors.mutedForeground }]}>Longitude *</Text>
+								<Text style={[styles.label, { color: colors.textMuted }]}>Longitude *</Text>
 								<TextInput
-									style={[styles.input, { backgroundColor: colors.secondary, color: colors.foreground, borderColor: colors.border }]}
+									style={[styles.input, { backgroundColor: colors.input, color: colors.text, borderColor: colors.borderSoft }]}
 									value={form.longitude}
 									onChangeText={(v) => setForm((f) => ({ ...f, longitude: v }))}
 									placeholder="0.00000"
-									placeholderTextColor={colors.placeholder}
+									placeholderTextColor={colors.textSubtle}
 									keyboardType="numeric"
 								/>
 							</View>
 						</View>
 
 						<View style={styles.modalActions}>
-							<Pressable style={[styles.cancelBtn, { backgroundColor: colors.muted }]} onPress={() => setModalVisible(false)}>
-								<Text style={[styles.cancelText, { color: colors.secondaryForeground }]}>Cancelar</Text>
+							<Pressable style={[styles.cancelBtn, { backgroundColor: colors.input }]} onPress={() => setModalVisible(false)}>
+								<Text style={[styles.cancelText, { color: colors.textMuted }]}>Cancelar</Text>
 							</Pressable>
 							<Pressable style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleSave} disabled={saving}>
 								{saving ? (
-									<ActivityIndicator color={colors.primaryForeground} size="small" />
+									<ActivityIndicator color={colors.textOnPrimary} size="small" />
 								) : (
-									<Text style={[styles.saveText, { color: colors.primaryForeground }]}>Guardar</Text>
+									<Text style={[styles.saveText, { color: colors.textOnPrimary }]}>Guardar</Text>
 								)}
 							</Pressable>
 						</View>
@@ -236,7 +236,7 @@ export default function PontosScreen() {
 }
 
 const styles = StyleSheet.create({
-	container: { flex: 1 },
+	container: { flex: 1, backgroundColor: "#0d0000" },
 	header: {
 		flexDirection: "row",
 		alignItems: "center",
@@ -244,39 +244,47 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 16,
 		paddingVertical: 14,
 		borderBottomWidth: 1,
+		borderBottomColor: "rgba(255,255,255,0.06)",
 	},
 	backBtn: { padding: 6 },
-	title: { fontSize: 18, fontWeight: "700" },
-	errorText: { textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
+	title: { color: "#f8fafc", fontSize: 18, fontWeight: "700" },
+	errorText: { color: "#ef4444", textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
 	card: {
+		backgroundColor: "#1a0a0a",
 		borderRadius: 12,
 		padding: 14,
 		borderWidth: 1,
+		borderColor: "rgba(255,255,255,0.07)",
 		flexDirection: "row",
 		alignItems: "center",
 	},
-	cardTitle: { fontWeight: "600", fontSize: 14 },
-	cardSub: { fontSize: 12, marginTop: 2 },
-	cardCoords: { fontSize: 11, marginTop: 4 },
+	cardTitle: { color: "#f8fafc", fontWeight: "600", fontSize: 14 },
+	cardSub: { color: "#94a3b8", fontSize: 12, marginTop: 2 },
+	cardCoords: { color: "#475569", fontSize: 11, marginTop: 4 },
 	actions: { flexDirection: "row", gap: 4 },
 	actionBtn: { padding: 8 },
 	modalOverlay: {
 		flex: 1,
+		backgroundColor: "rgba(0,0,0,0.7)",
 		justifyContent: "flex-end",
 	},
 	modalBox: {
+		backgroundColor: "#1a0a0a",
 		borderTopLeftRadius: 20,
 		borderTopRightRadius: 20,
 		padding: 24,
 		paddingBottom: 40,
 	},
-	modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 20 },
-	label: { fontSize: 12, marginBottom: 4, marginTop: 12 },
+	modalTitle: { color: "#f8fafc", fontSize: 18, fontWeight: "700", marginBottom: 20 },
+	label: { color: "#94a3b8", fontSize: 12, marginBottom: 4, marginTop: 12 },
 	input: {
+		backgroundColor: "rgba(255,255,255,0.06)",
 		borderRadius: 8,
 		padding: 12,
+		color: "#f8fafc",
 		fontSize: 14,
 		borderWidth: 1,
+		borderColor: "rgba(255,255,255,0.1)",
 	},
 	row: { flexDirection: "row" },
 	modalActions: { flexDirection: "row", gap: 12, marginTop: 24 },
@@ -284,14 +292,16 @@ const styles = StyleSheet.create({
 		flex: 1,
 		padding: 14,
 		borderRadius: 10,
+		backgroundColor: "rgba(255,255,255,0.06)",
 		alignItems: "center",
 	},
-	cancelText: { fontWeight: "600" },
+	cancelText: { color: "#94a3b8", fontWeight: "600" },
 	saveBtn: {
 		flex: 1,
 		padding: 14,
 		borderRadius: 10,
+		backgroundColor: "#dc2626",
 		alignItems: "center",
 	},
-	saveText: { fontWeight: "700" },
+	saveText: { color: "#fff", fontWeight: "700" },
 });

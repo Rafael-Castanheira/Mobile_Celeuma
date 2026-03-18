@@ -2,13 +2,13 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+	ActivityIndicator,
+	Pressable,
+	RefreshControl,
+	ScrollView,
+	StyleSheet,
+	Text,
+	View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
@@ -54,19 +54,19 @@ export default function EstatisticasScreen() {
 		: [];
 
 	return (
-		<View style={[styles.container, { backgroundColor: colors.background, paddingTop: top }]}>
-			<View style={[styles.header, { borderBottomColor: colors.border }]}>
+		<View style={[styles.container, { paddingTop: top, backgroundColor: colors.background }]}> 
+			<View style={[styles.header, { borderBottomColor: colors.borderSoft }]}> 
 				<Pressable onPress={() => router.back()} style={styles.backBtn}>
-					<Feather name="arrow-left" size={20} color={colors.foreground} />
+					<Feather name="arrow-left" size={20} color={colors.text} />
 				</Pressable>
-				<Text style={[styles.title, { color: colors.foreground }]}>Estatísticas</Text>
+				<Text style={[styles.title, { color: colors.text }]}>Estatísticas</Text>
 				<Pressable onPress={() => load()} style={styles.backBtn}>
-					<Feather name="refresh-cw" size={18} color={colors.foreground} />
+					<Feather name="refresh-cw" size={18} color={colors.text} />
 				</Pressable>
 			</View>
 
 			{loading && <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />}
-			{!loading && error && <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>}
+			{!loading && error && <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>}
 
 			{!loading && stats && (
 				<ScrollView
@@ -78,12 +78,12 @@ export default function EstatisticasScreen() {
 					{/* Grid */}
 					<View style={styles.grid}>
 						{cards.map((card) => (
-							<View key={card.label} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-								<View style={[styles.iconWrap, { backgroundColor: colors.accentSoft }]}>
+							<View key={card.label} style={[styles.statCard, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}>
+								<View style={[styles.iconWrap, { backgroundColor: colors.primarySoft }]}> 
 									<Feather name={card.icon} size={18} color={colors.primary} />
 								</View>
-								<Text style={[styles.statValue, { color: colors.foreground }]}>{card.value}</Text>
-								<Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{card.label}</Text>
+								<Text style={[styles.statValue, { color: colors.text }]}>{card.value}</Text>
+								<Text style={[styles.statLabel, { color: colors.textMuted }]}>{card.label}</Text>
 							</View>
 						))}
 					</View>
@@ -91,29 +91,29 @@ export default function EstatisticasScreen() {
 					{/* Highlights */}
 					{(stats.pontoMaisVisto || stats.rotaMaisVista) && (
 						<>
-							<Text style={[styles.sectionTitle, { color: colors.foreground }]}>Destaques</Text>
+							<Text style={[styles.sectionTitle, { color: colors.text }]}>Destaques</Text>
 							{stats.pontoMaisVisto && (
-								<View style={[styles.highlightCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-									<View style={[styles.highlightIcon, { backgroundColor: colors.accentSoft }]}>
+								<View style={[styles.highlightCard, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}>
+									<View style={[styles.highlightIcon, { backgroundColor: colors.primarySoft }]}> 
 										<Feather name="map-pin" size={16} color={colors.primary} />
 									</View>
 									<View style={{ flex: 1 }}>
-										<Text style={[styles.highlightSub, { color: colors.mutedForeground }]}>Ponto mais visto</Text>
-										<Text style={[styles.highlightName, { color: colors.foreground }]}>{stats.pontoMaisVisto.nome}</Text>
+										<Text style={[styles.highlightSub, { color: colors.textSubtle }]}>Ponto mais visto</Text>
+										<Text style={[styles.highlightName, { color: colors.text }]}>{stats.pontoMaisVisto.nome}</Text>
 									</View>
-									<Text style={[styles.highlightCount, { color: colors.mutedForeground }]}>{stats.pontoMaisVisto.total} visualizações</Text>
+									<Text style={[styles.highlightCount, { color: colors.textMuted }]}>{stats.pontoMaisVisto.total} visualizações</Text>
 								</View>
 							)}
 							{stats.rotaMaisVista && (
-								<View style={[styles.highlightCard, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 10 }]}>
-									<View style={[styles.highlightIcon, { backgroundColor: colors.accentSoft }]}>
+								<View style={[styles.highlightCard, { marginTop: 10, backgroundColor: colors.surface, borderColor: colors.borderSoft }]}>
+									<View style={[styles.highlightIcon, { backgroundColor: colors.primarySoft }]}> 
 										<Feather name="navigation" size={16} color={colors.primary} />
 									</View>
 									<View style={{ flex: 1 }}>
-										<Text style={[styles.highlightSub, { color: colors.mutedForeground }]}>Rota mais vista</Text>
-										<Text style={[styles.highlightName, { color: colors.foreground }]}>{stats.rotaMaisVista.nome}</Text>
+										<Text style={[styles.highlightSub, { color: colors.textSubtle }]}>Rota mais vista</Text>
+										<Text style={[styles.highlightName, { color: colors.text }]}>{stats.rotaMaisVista.nome}</Text>
 									</View>
-									<Text style={[styles.highlightCount, { color: colors.mutedForeground }]}>{stats.rotaMaisVista.total} visualizações</Text>
+									<Text style={[styles.highlightCount, { color: colors.textMuted }]}>{stats.rotaMaisVista.total} visualizações</Text>
 								</View>
 							)}
 						</>
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
 	},
 	backBtn: { padding: 6 },
 	title: { color: "#f8fafc", fontSize: 18, fontWeight: "700" },
-	errorText: { textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
+	errorText: { color: "#ef4444", textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
 	grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
 	statCard: {
 		backgroundColor: "#1a0a0a",
