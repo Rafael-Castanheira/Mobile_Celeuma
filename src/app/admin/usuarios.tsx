@@ -2,24 +2,24 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-	ActivityIndicator,
-	Alert,
-	FlatList,
-	Pressable,
-	StyleSheet,
-	Text,
-	View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
 import { useAppTheme } from "../../context/ThemeContext";
 import {
-	type ApiUser,
-	blockUser,
-	deleteUser,
-	getUsers,
-	unblockUser,
-	updateUserRole,
+    type ApiUser,
+    blockUser,
+    deleteUser,
+    getUsers,
+    unblockUser,
+    updateUserRole,
 } from "../../lib/360api";
 
 const ROLES = ["Admin", "User"];
@@ -107,33 +107,33 @@ export default function UsuariosScreen() {
 
 	function renderUser({ item }: { item: ApiUser }) {
 		return (
-			<View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}> 
+			<View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
 				<View style={styles.cardInfo}>
-					<View style={[styles.avatar, { backgroundColor: colors.primaryStrong }]}> 
-						<Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
+					<View style={[styles.avatar, { backgroundColor: colors.accentSoft }]}>
+						<Text style={[styles.avatarText, { color: colors.primary }]}>{item.name.charAt(0).toUpperCase()}</Text>
 					</View>
 					<View style={{ flex: 1 }}>
-						<Text style={[styles.userName, { color: colors.text }]}>{item.name}</Text>
-						<Text style={[styles.userEmail, { color: colors.textMuted }]}>{item.email}</Text>
+						<Text style={[styles.userName, { color: colors.foreground }]}>{item.name}</Text>
+						<Text style={[styles.userEmail, { color: colors.mutedForeground }]}>{item.email}</Text>
 						<View style={styles.pillRow}>
-							<View style={[styles.pill, item.active ? styles.pillActive : styles.pillBlocked]}>
+							<View style={[styles.pill, { backgroundColor: item.active ? colors.accentSoft : colors.destructive }, item.active && { borderWidth: 1, borderColor: colors.border }]}>
 								<Text style={styles.pillText}>{item.active ? "Ativo" : "Bloqueado"}</Text>
 							</View>
-							<View style={[styles.pill, { backgroundColor: colors.primarySoft }]}> 
-								<Text style={styles.pillText}>{item.Role.name}</Text>
+							<View style={[styles.pill, { backgroundColor: colors.muted }]}>
+								<Text style={[styles.pillText, { color: colors.secondaryForeground }]}>{item.Role.name}</Text>
 							</View>
 						</View>
 					</View>
 				</View>
 				<View style={styles.actions}>
 					<Pressable style={styles.actionBtn} onPress={() => promptRoleChange(item)}>
-						<Feather name="shield" size={16} color={colors.textMuted} />
+						<Feather name="shield" size={16} color={colors.iconMuted} />
 					</Pressable>
 					<Pressable style={styles.actionBtn} onPress={() => toggleBlock(item)}>
-						<Feather name={item.active ? "lock" : "unlock"} size={16} color={colors.textMuted} />
+						<Feather name={item.active ? "lock" : "unlock"} size={16} color={colors.iconMuted} />
 					</Pressable>
 					<Pressable style={styles.actionBtn} onPress={() => confirmDelete(item)}>
-						<Feather name="trash-2" size={16} color={colors.danger} />
+						<Feather name="trash-2" size={16} color={colors.destructive} />
 					</Pressable>
 				</View>
 			</View>
@@ -141,21 +141,21 @@ export default function UsuariosScreen() {
 	}
 
 	return (
-		<View style={[styles.container, { paddingTop: top, backgroundColor: colors.background }]}> 
+		<View style={[styles.container, { backgroundColor: colors.background, paddingTop: top }]}>
 			{/* Header */}
-			<View style={[styles.header, { borderBottomColor: colors.borderSoft }]}> 
+			<View style={[styles.header, { borderBottomColor: colors.border }]}>
 				<Pressable onPress={() => router.back()} style={styles.backBtn}>
-					<Feather name="arrow-left" size={20} color={colors.text} />
+					<Feather name="arrow-left" size={20} color={colors.foreground} />
 				</Pressable>
-				<Text style={[styles.title, { color: colors.text }]}>Utilizadores</Text>
+				<Text style={[styles.title, { color: colors.foreground }]}>Utilizadores</Text>
 				<Pressable onPress={load} style={styles.backBtn}>
-					<Feather name="refresh-cw" size={18} color={colors.text} />
+					<Feather name="refresh-cw" size={18} color={colors.foreground} />
 				</Pressable>
 			</View>
 
 			{loading && <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />}
 			{!loading && error && (
-				<Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>
+				<Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
 			)}
 			{!loading && !error && (
 				<FlatList
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
 	},
 	backBtn: { padding: 6 },
 	title: { color: "#f8fafc", fontSize: 18, fontWeight: "700" },
-	errorText: { color: "#ef4444", textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
+	errorText: { textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
 	card: {
 		backgroundColor: "#1a0a0a",
 		borderRadius: 12,
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
 	},
 	pillActive: { backgroundColor: "rgba(34,197,94,0.15)" },
 	pillBlocked: { backgroundColor: "rgba(239,68,68,0.15)" },
-	pillText: { color: "#cbd5e1", fontSize: 11 },
+	pillText: { color: "#f8fafc", fontSize: 11 },
 	actions: { flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 12 },
 	actionBtn: { padding: 8 },
 });

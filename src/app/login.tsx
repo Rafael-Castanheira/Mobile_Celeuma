@@ -1,32 +1,49 @@
 import { Feather } from "@expo/vector-icons";
-import { useRouter, type Href } from "expo-router";
-import { useState } from "react";
+import { Redirect, useRouter, type Href } from "expo-router";
+import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import BrandLogo from "../components/BrandLogo";
 import { useAuth } from "../context/AuthContext";
 import { useAppTheme } from "../context/ThemeContext";
-import { loginUser } from "../lib/360api";
+import { getLandingContent, loginUser, type LandingContent } from "../lib/360api";
 import { getAuthenticatedHomeRoute, isAdminRole } from "../lib/auth";
 
 export default function Login() {
   const router = useRouter();
   const { top, bottom } = useSafeAreaInsets();
-  const { setAuth } = useAuth();
-  const { colors } = useAppTheme();
+  const { user, isLoadingAuth, setAuth } = useAuth();
+  const { colors, activePreset } = useAppTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [landing, setLanding] = useState<LandingContent | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadLanding() {
+      try {
+        setLanding(await getLandingContent(controller.signal));
+      } catch {
+        setLanding(null);
+      }
+    }
+
+    loadLanding();
+    return () => controller.abort();
+  }, []);
 
   async function handleLogin() {
     if (!email.trim() || !password) {
@@ -48,39 +65,51 @@ export default function Login() {
     }
   }
 
-  return (
-    <KeyboardAvoidingView
-      style={[styles.root, { paddingTop: top, paddingBottom: bottom + 16, backgroundColor: colors.background }]}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      {/* Cabeçalho */}
-      <View style={styles.header}>
-        <View style={[styles.logoCircle, { backgroundColor: colors.surfaceAlt, borderColor: colors.primaryStrong, shadowColor: colors.shadow }]}> 
-          <Feather name="aperture" size={40} color={colors.primary} />
-        </View>
-        <Text style={[styles.appName, { color: colors.text }]}>Galerias 360</Text>
-        <Text style={[styles.tagline, { color: colors.textMuted }]}>Explore o mundo em todas as direções</Text>
+  if (isLoadingAuth) {
+    return (
+      <View style={[styles.root, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator color={colors.primary} />
       </View>
+    );
+  }
 
-      {/* Formulário */}
-      <View style={styles.form}>
-        <Text style={[styles.formTitle, { color: colors.text }]}>Entrar na conta</Text>
+  if (user) {
+    return <Redirect href={getAuthenticatedHomeRoute(user.role)} />;
+  }
+
+  return (
+    <View style={[styles.screen, { backgroundColor: colors.muted, paddingTop: top, paddingBottom: bottom + 12 }]}> 
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+      <View style={[styles.card, { backgroundColor: colors.background, borderColor: colors.border }]}> 
+        <View style={styles.header}>
+          <BrandLogo size={74} iconSize={34} withFrame />
+          <Text style={[styles.formTitle, { color: colors.foreground }]}>Entrar</Text>
+          <Text style={[styles.heroDescription, { color: colors.mutedForeground }]}>
+            {landing?.description ?? activePreset?.description ?? "Acede à tua conta para continuar."}
+          </Text>
+        </View>
+
+        <View style={styles.form}>
+          <View style={styles.inputBlock}>
+            <Text style={[styles.label, { color: colors.foreground }]}>Email</Text>
 
         {/* Mensagem de erro */}
         {error && (
-          <View style={[styles.errorBox, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]}> 
-            <Feather name="alert-circle" size={15} color={colors.danger} style={{ marginRight: 8 }} />
-            <Text style={styles.errorText}>{error}</Text>
+          <View style={[styles.errorBox, { backgroundColor: colors.accentSoft, borderColor: colors.destructive }]}> 
+            <Feather name="alert-circle" size={15} color={colors.destructive} style={{ marginRight: 8 }} />
+            <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
           </View>
         )}
 
-        {/* Campo e-mail */}
-        <View style={[styles.inputWrapper, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}> 
-          <Feather name="mail" size={18} color={colors.textMuted} style={styles.inputIcon} />
+        <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="mail" size={18} color={colors.iconMuted} style={styles.inputIcon} />
           <TextInput
-            style={[styles.input, { color: colors.text }]}
+            style={[styles.input, { color: colors.foreground }]}
             placeholder="E-mail"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={colors.placeholder}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -89,14 +118,21 @@ export default function Login() {
             returnKeyType="next"
           />
         </View>
+          </View>
 
-        {/* Campo senha */}
-        <View style={[styles.inputWrapper, { backgroundColor: colors.surfaceAlt, borderColor: colors.border }]}> 
-          <Feather name="lock" size={18} color={colors.textMuted} style={styles.inputIcon} />
+        <View style={styles.inputBlock}>
+          <View style={styles.passwordLabelRow}>
+            <Text style={[styles.label, { color: colors.foreground }]}>Password</Text>
+            <Pressable style={styles.forgotWrapper}>
+              <Text style={[styles.forgotText, { color: colors.primary }]}>Esqueceu-se da password?</Text>
+            </Pressable>
+          </View>
+        <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="lock" size={18} color={colors.iconMuted} style={styles.inputIcon} />
           <TextInput
-            style={[styles.input, { flex: 1, color: colors.text }]}
+            style={[styles.input, { flex: 1, color: colors.foreground }]}
             placeholder="Senha"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={colors.placeholder}
             value={password}
             onChangeText={setPassword}
             secureTextEntry={!showPassword}
@@ -108,21 +144,16 @@ export default function Login() {
             <Feather
               name={showPassword ? "eye-off" : "eye"}
               size={18}
-              color={colors.textMuted}
+              color={colors.iconMuted}
             />
           </Pressable>
         </View>
+        </View>
 
-        {/* Esqueci a senha */}
-        <Pressable style={styles.forgotWrapper}>
-          <Text style={[styles.forgotText, { color: colors.primary }]}>Esqueceu a senha?</Text>
-        </Pressable>
-
-        {/* Botão entrar */}
         <Pressable
           style={({ pressed }) => [
             styles.loginBtn,
-            { backgroundColor: colors.primary, shadowColor: colors.shadow },
+            { backgroundColor: loading ? colors.buttonDisabled : colors.primary, shadowColor: colors.shadow },
             pressed && styles.loginBtnPressed,
             loading && styles.loginBtnDisabled,
           ]}
@@ -130,81 +161,78 @@ export default function Login() {
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color={colors.textOnPrimary} />
+            <ActivityIndicator color={colors.primaryForeground} />
           ) : (
-            <Text style={[styles.loginBtnText, { color: colors.textOnPrimary }]}>Entrar</Text>
+            <Text style={[styles.loginBtnText, { color: colors.primaryForeground }]}>Entrar</Text>
           )}
         </Pressable>
-      </View>
+        </View>
 
-      {/* Rodapé */}
       <View style={styles.footer}>
-        <Text style={[styles.footerText, { color: colors.textMuted }]}>Não tem uma conta? </Text>
+        <Text style={[styles.footerText, { color: colors.mutedForeground }]}>Ainda não está registado? </Text>
         <Pressable>
-          <Text style={[styles.footerLink, { color: colors.primary }]}>Cadastre-se</Text>
+          <Text style={[styles.footerLink, { color: colors.primary }]}>Criar conta</Text>
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+      </View>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  keyboardContainer: {
+    flex: 1,
+    justifyContent: "center",
+  },
   root: {
     flex: 1,
-    backgroundColor: "#0d0000",
-    paddingHorizontal: 28,
-    justifyContent: "space-between",
   },
-  /* Cabeçalho */
+  card: {
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 22,
+  },
   header: {
     alignItems: "center",
-    marginTop: 24,
+    marginBottom: 18,
   },
-  logoCircle: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: "#1e0000",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1.5,
-    borderColor: "#7a1313",
-    shadowColor: "#dc2626",
-    shadowOpacity: 0.6,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
-    marginBottom: 16,
-  },
-  appName: {
-    color: "#f8fafc",
-    fontSize: 28,
-    fontWeight: "800",
-    letterSpacing: 0.5,
-    marginBottom: 6,
-  },
-  tagline: {
-    color: "rgba(248,250,252,0.5)",
-    fontSize: 14,
+  heroDescription: {
+    fontSize: 13.5,
     textAlign: "center",
+    lineHeight: 21,
+    marginTop: 8,
   },
-  /* Formulário */
   form: {
-    gap: 14,
+    gap: 12,
   },
   formTitle: {
-    color: "#f8fafc",
-    fontSize: 22,
+    fontSize: 28,
     fontWeight: "700",
-    marginBottom: 4,
+    marginTop: 12,
+  },
+  inputBlock: {
+    gap: 8,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  passwordLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1e0000",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#3d0000",
     paddingHorizontal: 14,
     height: 52,
   },
@@ -213,32 +241,28 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    color: "#f8fafc",
     fontSize: 15,
   },
   eyeBtn: {
     paddingLeft: 8,
   },
   forgotWrapper: {
-    alignSelf: "flex-end",
+    paddingVertical: 2,
   },
   forgotText: {
-    color: "#dc2626",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
   },
   loginBtn: {
-    backgroundColor: "#dc2626",
-    borderRadius: 14,
-    height: 52,
+    borderRadius: 10,
+    height: 48,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 4,
-    shadowColor: "#dc2626",
-    shadowOpacity: 0.55,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    marginTop: 8,
+    shadowOpacity: 0.24,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
   loginBtnPressed: {
     opacity: 0.8,
@@ -249,36 +273,30 @@ const styles = StyleSheet.create({
   errorBox: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(220,38,38,0.15)",
     borderWidth: 1,
-    borderColor: "rgba(220,38,38,0.4)",
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   errorText: {
-    color: "#fca5a5",
     fontSize: 13,
     flex: 1,
   },
   loginBtnText: {
-    color: "#f8fafc",
     fontSize: 16,
     fontWeight: "700",
     letterSpacing: 0.5,
   },
-  /* Rodapé */
   footer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 16,
   },
   footerText: {
-    color: "rgba(248,250,252,0.5)",
     fontSize: 14,
   },
   footerLink: {
-    color: "#dc2626",
     fontSize: 14,
     fontWeight: "700",
   },

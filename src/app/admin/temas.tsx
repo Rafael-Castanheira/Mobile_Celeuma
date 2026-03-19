@@ -16,10 +16,10 @@ import { useAuth } from "../../context/AuthContext";
 import { useAppTheme } from "../../context/ThemeContext";
 import {
     type ThemePreset,
-    getActiveThemePreset,
     getThemePresets,
     setActiveThemePreset,
 } from "../../lib/360api";
+import { isThemeColorValue, normalizeThemeColor } from "../../lib/theme";
 
 const PREFERRED_THEME_KEYS = [
 	"primary",
@@ -34,7 +34,7 @@ const PREFERRED_THEME_KEYS = [
 ];
 
 function isColorLike(value: string): boolean {
-	return /^(#|rgb\(|rgba\(|hsl\(|hsla\()/i.test(value.trim());
+	return isThemeColorValue(value);
 }
 
 function getPreviewColors(vars: ThemePreset["lightVars"] | ThemePreset["darkVars"]): string[] {
@@ -46,27 +46,27 @@ function getPreviewColors(vars: ThemePreset["lightVars"] | ThemePreset["darkVars
 		.filter((value): value is string => typeof value === "string" && isColorLike(value));
 	const fallback = entries.map(([, value]) => value);
 
-	return [...new Set([...preferred, ...fallback])].slice(0, 4);
+	return [...new Set([...preferred, ...fallback])].map((value) => normalizeThemeColor(value)).slice(0, 4);
 }
 
 function countThemeVars(theme: ThemePreset): number {
 	return Object.keys(theme.lightVars ?? {}).length + Object.keys(theme.darkVars ?? {}).length;
 }
 
-function ThemePreviewRow({ label, swatches, textColor }: { label: string; swatches: string[]; textColor: string }) {
+function ThemePreviewRow({ label, colors }: { label: string; colors: string[] }) {
 	return (
 		<View style={styles.previewRow}>
-			<Text style={[styles.previewLabel, { color: textColor }]}>{label}</Text>
+			<Text style={styles.previewLabel}>{label}</Text>
 			<View style={styles.previewSwatches}>
-				{swatches.length > 0 ? (
-					swatches.map((color, index) => (
+				{colors.length > 0 ? (
+					colors.map((color, index) => (
 						<View
 							key={`${label}-${color}-${index}`}
 							style={[styles.swatch, { backgroundColor: color }]}
 						/>
 					))
 				) : (
-					<Text style={[styles.previewEmpty, { color: textColor }]}>Sem cores definidas</Text>
+					<Text style={styles.previewEmpty}>Sem cores definidas</Text>
 				)}
 			</View>
 		</View>
@@ -77,9 +77,8 @@ export default function TemasScreen() {
 	const router = useRouter();
 	const { top, bottom } = useSafeAreaInsets();
 	const { token } = useAuth();
-	const { colors, applyThemePreset } = useAppTheme();
+	const { colors, activePreset, refreshActiveTheme } = useAppTheme();
 	const [themes, setThemes] = useState<ThemePreset[]>([]);
-	const [activeTheme, setActiveTheme] = useState<ThemePreset | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -94,12 +93,8 @@ export default function TemasScreen() {
 
 		setError(null);
 		try {
-			const [availableThemes, currentTheme] = await Promise.all([
-				getThemePresets(),
-				getActiveThemePreset(),
-			]);
+			const availableThemes = await getThemePresets();
 			setThemes(availableThemes);
-			setActiveTheme(currentTheme);
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Erro desconhecido.");
 		} finally {
@@ -121,8 +116,7 @@ export default function TemasScreen() {
 		setSubmittingId(theme.id_theme_preset);
 		try {
 			await setActiveThemePreset(theme.id_theme_preset, token);
-			setActiveTheme(theme);
-			applyThemePreset(theme);
+			await refreshActiveTheme();
 		} catch (err) {
 			Alert.alert("Erro", err instanceof Error ? err.message : "Erro ao definir tema ativo.");
 		} finally {
@@ -139,8 +133,7 @@ export default function TemasScreen() {
 		setSubmittingId("default");
 		try {
 			await setActiveThemePreset(null, token);
-			setActiveTheme(null);
-			applyThemePreset(null);
+			await refreshActiveTheme();
 		} catch (err) {
 			Alert.alert("Erro", err instanceof Error ? err.message : "Erro ao repor o tema padrão.");
 		} finally {
@@ -149,19 +142,19 @@ export default function TemasScreen() {
 	}
 
 	return (
-		<View style={[styles.container, { paddingTop: top, backgroundColor: colors.background }]}> 
-			<View style={[styles.header, { borderBottomColor: colors.borderSoft }]}> 
+		<View style={[styles.container, { backgroundColor: colors.background, paddingTop: top }]}> 
+			<View style={[styles.header, { borderBottomColor: colors.border }]}>
 				<Pressable onPress={() => router.back()} style={styles.headerBtn}>
-					<Feather name="arrow-left" size={20} color={colors.text} />
+					<Feather name="arrow-left" size={20} color={colors.foreground} />
 				</Pressable>
-				<Text style={[styles.title, { color: colors.text }]}>Temas</Text>
+				<Text style={[styles.title, { color: colors.foreground }]}>Temas</Text>
 				<Pressable onPress={() => load(true)} style={styles.headerBtn}>
-					<Feather name="refresh-cw" size={18} color={colors.text} />
+					<Feather name="refresh-cw" size={18} color={colors.foreground} />
 				</Pressable>
 			</View>
 
 			{loading && <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />}
-			{!loading && error && <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>}
+			{!loading && error && <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>}
 
 			{!loading && !error && (
 				<ScrollView
@@ -170,42 +163,42 @@ export default function TemasScreen() {
 						<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
 					}
 				>
-					<View style={[styles.currentCard, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}> 
-						<View style={[styles.currentIconWrap, { backgroundColor: colors.primarySoft }]}> 
+					<View style={[styles.currentCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+						<View style={[styles.currentIconWrap, { backgroundColor: colors.accentSoft }]}>
 							<Feather name="droplet" size={18} color={colors.primary} />
 						</View>
 						<View style={{ flex: 1 }}>
-							<Text style={[styles.currentLabel, { color: colors.textMuted }]}>Tema ativo</Text>
-							<Text style={[styles.currentValue, { color: colors.text }]}>{activeTheme?.name ?? "Padrão do sistema"}</Text>
-							<Text style={[styles.currentSubtext, { color: colors.textSubtle }]}>
-								{activeTheme
-									? `${countThemeVars(activeTheme)} variáveis configuradas`
+							<Text style={[styles.currentLabel, { color: colors.mutedForeground }]}>Tema ativo</Text>
+							<Text style={[styles.currentValue, { color: colors.foreground }]}>{activePreset?.name ?? "Padrão do sistema"}</Text>
+							<Text style={[styles.currentSubtext, { color: colors.mutedForeground }]}> 
+								{activePreset
+									? `${countThemeVars(activePreset)} variáveis configuradas`
 									: "Sem preset ativo definido no backend"}
 							</Text>
 						</View>
 						<Pressable
 							style={[
 								styles.resetBtn,
-								{ backgroundColor: colors.primarySoft },
+								{ backgroundColor: colors.accentSoft },
 								submittingId === "default" && styles.resetBtnDisabled,
 							]}
 							onPress={handleReset}
 							disabled={submittingId !== null}
 						>
 							{submittingId === "default" ? (
-								<ActivityIndicator size="small" color={colors.text} />
+								<ActivityIndicator size="small" color={colors.primaryForeground} />
 							) : (
-								<Text style={[styles.resetBtnText, { color: colors.text }]}>Usar padrão</Text>
+								<Text style={[styles.resetBtnText, { color: colors.primary }]}>Usar padrão</Text>
 							)}
 						</Pressable>
 					</View>
 
-					<Text style={[styles.sectionTitle, { color: colors.textMuted }]}>Presets disponíveis</Text>
+					<Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Presets disponíveis</Text>
 					{themes.length === 0 ? (
-						<Text style={[styles.emptyText, { color: colors.textSubtle }]}>Nenhum tema disponível na API.</Text>
+						<Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Nenhum tema disponível na API.</Text>
 					) : (
 						themes.map((theme) => {
-							const isActive = activeTheme?.id_theme_preset === theme.id_theme_preset;
+							const isActive = activePreset?.id_theme_preset === theme.id_theme_preset;
 							const isSubmitting = submittingId === theme.id_theme_preset;
 							const lightColors = getPreviewColors(theme.lightVars);
 							const darkColors = getPreviewColors(theme.darkVars);
@@ -215,42 +208,44 @@ export default function TemasScreen() {
 									key={theme.id_theme_preset}
 									style={[
 										styles.themeCard,
-										{ backgroundColor: colors.card, borderColor: colors.borderSoft },
+										{ backgroundColor: colors.card, borderColor: colors.border },
 										isActive && [styles.themeCardActive, { borderColor: colors.primary, shadowColor: colors.shadow }],
 									]}
 								>
 									<View style={styles.themeHeader}>
 										<View style={{ flex: 1 }}>
-											<Text style={[styles.themeName, { color: colors.text }]}>{theme.name}</Text>
-											<Text style={[styles.themeMeta, { color: colors.textMuted }]}>
+											<Text style={[styles.themeName, { color: colors.foreground }]}>{theme.name}</Text>
+											<Text style={[styles.themeMeta, { color: colors.mutedForeground }]}>
 												{countThemeVars(theme)} variáveis • preset #{theme.id_theme_preset}
 											</Text>
+											{theme.description ? (
+												<Text style={[styles.themeDescription, { color: colors.mutedForeground }]}>{theme.description}</Text>
+											) : null}
 										</View>
 										{isActive && (
-											<View style={[styles.activePill, { backgroundColor: colors.primarySoft }]}>
+											<View style={[styles.activePill, { backgroundColor: colors.accentSoft }]}>
 												<Text style={[styles.activePillText, { color: colors.primary }]}>Ativo</Text>
 											</View>
 										)}
 									</View>
 
-									<ThemePreviewRow label="Claro" swatches={lightColors} textColor={colors.textSubtle} />
-									<ThemePreviewRow label="Escuro" swatches={darkColors} textColor={colors.textSubtle} />
+									<ThemePreviewRow label="Claro" colors={lightColors} />
+									<ThemePreviewRow label="Escuro" colors={darkColors} />
 
 									<View style={styles.actionsRow}>
 										<Pressable
 											style={[
 												styles.activateBtn,
-												{ backgroundColor: isActive ? colors.input : colors.primary },
-												isActive && styles.activateBtnActive,
+												{ backgroundColor: isActive ? colors.muted : colors.primary },
 												isSubmitting && styles.activateBtnDisabled,
 											]}
 											onPress={() => handleActivate(theme)}
 											disabled={isActive || submittingId !== null}
 										>
 											{isSubmitting ? (
-												<ActivityIndicator size="small" color={colors.textOnPrimary} />
+												<ActivityIndicator size="small" color={isActive ? colors.mutedForeground : colors.primaryForeground} />
 											) : (
-												<Text style={[styles.activateBtnText, { color: isActive ? colors.text : colors.textOnPrimary }]}>{isActive ? "Tema ativo" : "Ativar tema"}</Text>
+												<Text style={[styles.activateBtnText, { color: isActive ? colors.mutedForeground : colors.primaryForeground }]}>{isActive ? "Tema ativo" : "Ativar tema"}</Text>
 											)}
 										</Pressable>
 									</View>
@@ -277,7 +272,7 @@ const styles = StyleSheet.create({
 	},
 	headerBtn: { padding: 6 },
 	title: { color: "#f8fafc", fontSize: 18, fontWeight: "700" },
-	errorText: { color: "#ef4444", textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
+	errorText: { textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
 	currentCard: {
 		backgroundColor: "#1a0a0a",
 		borderRadius: 18,
@@ -297,9 +292,9 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		justifyContent: "center",
 	},
-	currentLabel: { color: "#94a3b8", fontSize: 12, marginBottom: 2 },
-	currentValue: { color: "#f8fafc", fontSize: 17, fontWeight: "700" },
-	currentSubtext: { color: "#64748b", fontSize: 12, marginTop: 4 },
+	currentLabel: { fontSize: 12, marginBottom: 2 },
+	currentValue: { fontSize: 17, fontWeight: "700" },
+	currentSubtext: { fontSize: 12, marginTop: 4 },
 	resetBtn: {
 		backgroundColor: "rgba(220,38,38,0.16)",
 		borderRadius: 10,
@@ -309,7 +304,7 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 	},
 	resetBtnDisabled: { opacity: 0.6 },
-	resetBtnText: { color: "#f8fafc", fontWeight: "700", fontSize: 12 },
+	resetBtnText: { fontWeight: "700", fontSize: 12 },
 	sectionTitle: {
 		color: "rgba(248,250,252,0.5)",
 		textTransform: "uppercase",
@@ -317,7 +312,7 @@ const styles = StyleSheet.create({
 		letterSpacing: 2,
 		marginBottom: 12,
 	},
-	emptyText: { color: "#64748b", textAlign: "center", marginTop: 24 },
+	emptyText: { textAlign: "center", marginTop: 24 },
 	themeCard: {
 		backgroundColor: "#1a0505",
 		borderRadius: 16,
@@ -340,15 +335,16 @@ const styles = StyleSheet.create({
 		gap: 10,
 		marginBottom: 14,
 	},
-	themeName: { color: "#f8fafc", fontSize: 16, fontWeight: "700" },
-	themeMeta: { color: "#94a3b8", fontSize: 12, marginTop: 4 },
+	themeName: { fontSize: 16, fontWeight: "700" },
+	themeMeta: { fontSize: 12, marginTop: 4 },
+	themeDescription: { fontSize: 12, lineHeight: 18, marginTop: 6 },
 	activePill: {
 		backgroundColor: "rgba(220,38,38,0.16)",
 		borderRadius: 999,
 		paddingHorizontal: 10,
 		paddingVertical: 6,
 	},
-	activePillText: { color: "#fca5a5", fontSize: 11, fontWeight: "700" },
+	activePillText: { fontSize: 11, fontWeight: "700" },
 	previewRow: { marginBottom: 12 },
 	previewLabel: {
 		color: "#64748b",
@@ -366,15 +362,13 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: "rgba(255,255,255,0.1)",
 	},
-	previewEmpty: { color: "#475569", fontSize: 12 },
+	previewEmpty: { fontSize: 12 },
 	actionsRow: { marginTop: 4 },
 	activateBtn: {
-		backgroundColor: "#dc2626",
 		borderRadius: 12,
 		paddingVertical: 12,
 		alignItems: "center",
 	},
-	activateBtnActive: { backgroundColor: "rgba(255,255,255,0.08)" },
 	activateBtnDisabled: { opacity: 0.7 },
-	activateBtnText: { color: "#f8fafc", fontWeight: "700", fontSize: 13 },
+	activateBtnText: { fontWeight: "700", fontSize: 13 },
 });

@@ -64,17 +64,44 @@ export type ThemeVariables = Record<string, string>;
 export type ThemePreset = {
 	id_theme_preset: number;
 	name: string;
+	description?: string | null;
 	lightVars: ThemeVariables | null;
 	darkVars: ThemeVariables | null;
 	logoLightUrl?: string | null;
 	logoDarkUrl?: string | null;
 };
 
-const BASE_URL = "http://192.168.0.106:3000";
+export type LandingContent = {
+	title: string;
+	description: string;
+};
+
+const BASE_URL = "http://100.68.232.113:3000";
 const POINTS_ENDPOINT = `${BASE_URL}/ponto/list`;
 const ROUTES_ENDPOINT = `${BASE_URL}/trajeto/list`;
 const LOGIN_ENDPOINT = `${BASE_URL}/auth/login`;
 const ME_ENDPOINT = `${BASE_URL}/auth/me`;
+const REQUEST_TIMEOUT_MS = 15000;
+
+async function fetchWithTimeout(
+	input: RequestInfo | URL,
+	init: RequestInit,
+	timeoutMs = REQUEST_TIMEOUT_MS
+): Promise<Response> {
+	const controller = new AbortController();
+	const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+	try {
+		return await fetch(input, { ...init, signal: controller.signal });
+	} catch (error) {
+		if (error instanceof Error && error.name === "AbortError") {
+			throw new Error("A ligação ao servidor expirou. Verifique a conexão e tente novamente.");
+		}
+		throw error;
+	} finally {
+		clearTimeout(timeoutId);
+	}
+}
 
 function toMapPoint(ponto: ApiPonto): MapPoint {
 	return {
@@ -192,21 +219,11 @@ function extractTrajetos(payload: unknown): unknown[] | null {
 }
 
 function toThemeVariables(value: unknown): ThemeVariables | null {
-	let source = value;
-
-	if (typeof source === "string") {
-		try {
-			source = JSON.parse(source);
-		} catch {
-			return null;
-		}
-	}
-
-	if (!source || typeof source !== "object" || Array.isArray(source)) {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		return null;
 	}
 
-	return Object.entries(source as Record<string, unknown>).reduce<ThemeVariables>((acc, [key, entry]) => {
+	return Object.entries(value as Record<string, unknown>).reduce<ThemeVariables>((acc, [key, entry]) => {
 		if (typeof entry === "string") {
 			acc[key] = entry;
 		}
@@ -228,10 +245,12 @@ function normalizeThemePreset(value: unknown): ThemePreset | null {
 
 	const logoLightUrl = typeof record.logoLightUrl === "string" ? record.logoLightUrl : null;
 	const logoDarkUrl = typeof record.logoDarkUrl === "string" ? record.logoDarkUrl : null;
+	const description = typeof record.description === "string" ? record.description : null;
 
 	return {
 		id_theme_preset: id,
 		name,
+		description,
 		lightVars: toThemeVariables(record.lightVars),
 		darkVars: toThemeVariables(record.darkVars),
 		logoLightUrl,
@@ -311,7 +330,7 @@ export async function loginUser(
 	email: string,
 	password: string
 ): Promise<{ token: string; user: AuthUser }> {
-	const response = await fetch(LOGIN_ENDPOINT, {
+	const response = await fetchWithTimeout(LOGIN_ENDPOINT, {
 		method: "POST",
 		headers: { "Content-Type": "application/json", Accept: "application/json" },
 		body: JSON.stringify({ email, password }),
@@ -339,7 +358,7 @@ export async function loginUser(
 }
 
 export async function getMe(token: string): Promise<AuthUser> {
-	const response = await fetch(ME_ENDPOINT, {
+	const response = await fetchWithTimeout(ME_ENDPOINT, {
 		headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
 	});
 
@@ -562,4 +581,23 @@ export async function setActiveThemePreset(presetId: number | null, token: strin
 		body: JSON.stringify({ presetId }),
 	});
 	if (!res.ok) throw new Error(`Erro ao definir tema ativo (${res.status}).`);
+}
+
+export async function getLandingContent(signal?: AbortSignal): Promise<LandingContent> {
+	const res = await fetch(`${BASE_URL}/theme/landing-content`, {
+		headers: { Accept: "application/json" },
+		signal,
+	});
+	if (!res.ok) throw new Error(`Erro ao carregar conteúdo (${res.status}).`);
+
+	const payload = (await res.json()) as ApiEnvelope<unknown>;
+	const record = asRecord(payload?.data);
+	if (!record || typeof record.title !== "string" || typeof record.description !== "string") {
+		throw new Error("Resposta inválida do conteúdo de apresentação.");
+	}
+
+	return {
+		title: record.title,
+		description: record.description,
+	};
 }

@@ -131,17 +131,17 @@ export default function TrajetosScreen() {
 
 	function renderRoute({ item }: { item: MapRoute }) {
 		return (
-			<View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.borderSoft }]}> 
+			<View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
 				<View style={{ flex: 1 }}>
-					<Text style={[styles.cardTitle, { color: colors.text }]}>{item.name}</Text>
-					<Text style={[styles.cardSub, { color: colors.textMuted }]}>{item.pointIds.length} pontos</Text>
+					<Text style={[styles.cardTitle, { color: colors.foreground }]}>{item.name}</Text>
+					<Text style={[styles.cardSub, { color: colors.mutedForeground }]}>{item.pointIds.length} pontos</Text>
 				</View>
 				<View style={styles.actions}>
 					<Pressable style={styles.actionBtn} onPress={() => openEdit(item)}>
-						<Feather name="edit-2" size={16} color={colors.textMuted} />
+						<Feather name="edit-2" size={16} color={colors.iconMuted} />
 					</Pressable>
 					<Pressable style={styles.actionBtn} onPress={() => confirmDelete(item)}>
-						<Feather name="trash-2" size={16} color={colors.danger} />
+						<Feather name="trash-2" size={16} color={colors.destructive} />
 					</Pressable>
 				</View>
 			</View>
@@ -149,19 +149,19 @@ export default function TrajetosScreen() {
 	}
 
 	return (
-		<View style={[styles.container, { paddingTop: top, backgroundColor: colors.background }]}> 
-			<View style={[styles.header, { borderBottomColor: colors.borderSoft }]}> 
+		<View style={[styles.container, { backgroundColor: colors.background, paddingTop: top }]}>
+			<View style={[styles.header, { borderBottomColor: colors.border }]}>
 				<Pressable onPress={() => router.back()} style={styles.backBtn}>
-					<Feather name="arrow-left" size={20} color={colors.text} />
+					<Feather name="arrow-left" size={20} color={colors.foreground} />
 				</Pressable>
-				<Text style={[styles.title, { color: colors.text }]}>Trajetos</Text>
+				<Text style={[styles.title, { color: colors.foreground }]}>Trajetos</Text>
 				<Pressable onPress={() => { setSelectedPointIds([]); setDescription(""); setCreateVisible(true); }} style={styles.backBtn}>
-					<Feather name="plus" size={22} color={colors.text} />
+					<Feather name="plus" size={22} color={colors.foreground} />
 				</Pressable>
 			</View>
 
 			{loading && <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />}
-			{!loading && error && <Text style={[styles.errorText, { color: colors.danger }]}>{error}</Text>}
+			{!loading && error && <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>}
 			{!loading && !error && (
 				<FlatList
 					data={routes}
@@ -169,26 +169,26 @@ export default function TrajetosScreen() {
 					renderItem={renderRoute}
 					contentContainerStyle={{ padding: 16, paddingBottom: bottom + 32 }}
 					ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-					ListEmptyComponent={<Text style={[styles.emptyText, { color: colors.textSubtle }]}>Nenhum trajeto encontrado.</Text>}
+					ListEmptyComponent={<Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Nenhum trajeto encontrado.</Text>}
 				/>
 			)}
 
 			{/* Create modal */}
 			<Modal visible={createVisible} animationType="slide" transparent>
-				<View style={styles.modalOverlay}>
-					<View style={[styles.modalBox, { backgroundColor: colors.surface }]}> 
-						<Text style={[styles.modalTitle, { color: colors.text }]}>Novo trajeto</Text>
+				<View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+					<View style={[styles.modalBox, { backgroundColor: colors.card }]}>
+						<Text style={[styles.modalTitle, { color: colors.foreground }]}>Novo trajeto</Text>
 
-						<Text style={[styles.label, { color: colors.textMuted }]}>Descrição</Text>
+						<Text style={[styles.label, { color: colors.mutedForeground }]}>Descrição</Text>
 						<TextInput
-							style={[styles.input, { backgroundColor: colors.input, color: colors.text, borderColor: colors.borderSoft }]}
+							style={[styles.input, { backgroundColor: colors.secondary, color: colors.foreground, borderColor: colors.border }]}
 							value={description}
 							onChangeText={setDescription}
 							placeholder="Descrição (opcional)"
-							placeholderTextColor={colors.textSubtle}
+							placeholderTextColor={colors.placeholder}
 						/>
 
-						<Text style={[styles.label, { marginTop: 16, color: colors.textMuted }]}>Pontos (seleciona ≥ 2, em ordem)</Text>
+						<Text style={[styles.label, { color: colors.mutedForeground, marginTop: 16 }]}>Pontos (seleciona ≥ 2, em ordem)</Text>
 						<FlatList
 							data={points}
 							keyExtractor={(p) => String(p.id)}
@@ -200,15 +200,15 @@ export default function TrajetosScreen() {
 									<Pressable
 										style={[
 											styles.pointRow,
-											{ backgroundColor: colors.input },
-											selected && [styles.pointRowSelected, { borderColor: colors.primary, backgroundColor: colors.primarySoft }],
+											{ backgroundColor: colors.secondary },
+											selected && [styles.pointRowSelected, { borderColor: colors.primary, backgroundColor: colors.accentSoft }],
 										]}
 										onPress={() => togglePoint(item.id)}
 									>
-										<View style={[styles.pointIndex, { backgroundColor: colors.borderSoft }, selected && [styles.pointIndexSelected, { backgroundColor: colors.primary }]]}>
-											<Text style={styles.pointIndexText}>{selected ? idx + 1 : ""}</Text>
+										<View style={[styles.pointIndex, { backgroundColor: colors.muted }, selected && [styles.pointIndexSelected, { backgroundColor: colors.primary }]]}>
+											<Text style={[styles.pointIndexText, { color: selected ? colors.primaryForeground : colors.mutedForeground }]}>{selected ? idx + 1 : ""}</Text>
 										</View>
-										<Text style={[styles.pointName, { color: colors.textMuted }, selected && { color: colors.text }]}>{item.title}</Text>
+										<Text style={[styles.pointName, { color: colors.mutedForeground }, selected && { color: colors.foreground }]}>{item.title}</Text>
 										{selected && <Feather name="check" size={14} color={colors.primary} />}
 									</Pressable>
 								);
@@ -216,11 +216,11 @@ export default function TrajetosScreen() {
 						/>
 
 						<View style={styles.modalActions}>
-							<Pressable style={[styles.cancelBtn, { backgroundColor: colors.input }]} onPress={() => setCreateVisible(false)}>
-								<Text style={[styles.cancelText, { color: colors.textMuted }]}>Cancelar</Text>
+							<Pressable style={[styles.cancelBtn, { backgroundColor: colors.muted }]} onPress={() => setCreateVisible(false)}>
+								<Text style={[styles.cancelText, { color: colors.secondaryForeground }]}>Cancelar</Text>
 							</Pressable>
 							<Pressable style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleCreate} disabled={saving}>
-								{saving ? <ActivityIndicator color={colors.textOnPrimary} size="small" /> : <Text style={[styles.saveText, { color: colors.textOnPrimary }]}>Criar</Text>}
+								{saving ? <ActivityIndicator color={colors.primaryForeground} size="small" /> : <Text style={[styles.saveText, { color: colors.primaryForeground }]}>Criar</Text>}
 							</Pressable>
 						</View>
 					</View>
@@ -229,23 +229,23 @@ export default function TrajetosScreen() {
 
 			{/* Edit description modal */}
 			<Modal visible={editRoute !== null} animationType="fade" transparent>
-				<View style={styles.modalOverlay}>
-					<View style={[styles.modalBox, { backgroundColor: colors.surface }]}> 
-						<Text style={[styles.modalTitle, { color: colors.text }]}>Editar descrição</Text>
-						<Text style={[styles.label, { color: colors.textMuted }]}>Descrição</Text>
+				<View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+					<View style={[styles.modalBox, { backgroundColor: colors.card }]}> 
+						<Text style={[styles.modalTitle, { color: colors.foreground }]}>Editar descrição</Text>
+						<Text style={[styles.label, { color: colors.mutedForeground }]}>Descrição</Text>
 						<TextInput
-							style={[styles.input, { backgroundColor: colors.input, color: colors.text, borderColor: colors.borderSoft }]}
+							style={[styles.input, { backgroundColor: colors.secondary, color: colors.foreground, borderColor: colors.border }]}
 							value={editDesc}
 							onChangeText={setEditDesc}
 							placeholder="Nova descrição"
-							placeholderTextColor={colors.textSubtle}
+							placeholderTextColor={colors.placeholder}
 						/>
 						<View style={styles.modalActions}>
-							<Pressable style={[styles.cancelBtn, { backgroundColor: colors.input }]} onPress={() => setEditRoute(null)}>
-								<Text style={[styles.cancelText, { color: colors.textMuted }]}>Cancelar</Text>
+							<Pressable style={[styles.cancelBtn, { backgroundColor: colors.muted }]} onPress={() => setEditRoute(null)}>
+								<Text style={[styles.cancelText, { color: colors.secondaryForeground }]}>Cancelar</Text>
 							</Pressable>
 							<Pressable style={[styles.saveBtn, { backgroundColor: colors.primary }]} onPress={handleEditSave} disabled={editSaving}>
-								{editSaving ? <ActivityIndicator color={colors.textOnPrimary} size="small" /> : <Text style={[styles.saveText, { color: colors.textOnPrimary }]}>Guardar</Text>}
+								{editSaving ? <ActivityIndicator color={colors.primaryForeground} size="small" /> : <Text style={[styles.saveText, { color: colors.primaryForeground }]}>Guardar</Text>}
 							</Pressable>
 						</View>
 					</View>
@@ -256,7 +256,7 @@ export default function TrajetosScreen() {
 }
 
 const styles = StyleSheet.create({
-	container: { flex: 1, backgroundColor: "#0d0000" },
+	container: { flex: 1 },
 	header: {
 		flexDirection: "row",
 		alignItems: "center",
@@ -264,44 +264,37 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 16,
 		paddingVertical: 14,
 		borderBottomWidth: 1,
-		borderBottomColor: "rgba(255,255,255,0.06)",
 	},
 	backBtn: { padding: 6 },
-	title: { color: "#f8fafc", fontSize: 18, fontWeight: "700" },
-	errorText: { color: "#ef4444", textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
-	emptyText: { color: "#475569", textAlign: "center", marginTop: 40 },
+	title: { fontSize: 18, fontWeight: "700" },
+	errorText: { textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
+	emptyText: { textAlign: "center", marginTop: 40 },
 	card: {
-		backgroundColor: "#1a0a0a",
 		borderRadius: 12,
 		padding: 14,
 		borderWidth: 1,
-		borderColor: "rgba(255,255,255,0.07)",
 		flexDirection: "row",
 		alignItems: "center",
 	},
-	cardTitle: { color: "#f8fafc", fontWeight: "600", fontSize: 14 },
-	cardSub: { color: "#94a3b8", fontSize: 12, marginTop: 2 },
+	cardTitle: { fontWeight: "600", fontSize: 14 },
+	cardSub: { fontSize: 12, marginTop: 2 },
 	actions: { flexDirection: "row", gap: 4 },
 	actionBtn: { padding: 8 },
-	modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.7)", justifyContent: "flex-end" },
+	modalOverlay: { flex: 1, justifyContent: "flex-end" },
 	modalBox: {
-		backgroundColor: "#1a0a0a",
 		borderTopLeftRadius: 20,
 		borderTopRightRadius: 20,
 		padding: 24,
 		paddingBottom: 40,
 		maxHeight: "85%",
 	},
-	modalTitle: { color: "#f8fafc", fontSize: 18, fontWeight: "700", marginBottom: 16 },
-	label: { color: "#94a3b8", fontSize: 12, marginBottom: 4 },
+	modalTitle: { fontSize: 18, fontWeight: "700", marginBottom: 16 },
+	label: { fontSize: 12, marginBottom: 4 },
 	input: {
-		backgroundColor: "rgba(255,255,255,0.06)",
 		borderRadius: 8,
 		padding: 12,
-		color: "#f8fafc",
 		fontSize: 14,
 		borderWidth: 1,
-		borderColor: "rgba(255,255,255,0.1)",
 	},
 	pointList: { maxHeight: 220, marginTop: 4 },
 	pointRow: {
@@ -314,23 +307,21 @@ const styles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: "transparent",
 		marginBottom: 4,
-		backgroundColor: "rgba(255,255,255,0.04)",
 	},
-	pointRowSelected: { borderColor: "rgba(220,38,38,0.4)", backgroundColor: "rgba(220,38,38,0.08)" },
+	pointRowSelected: {},
 	pointIndex: {
 		width: 20,
 		height: 20,
 		borderRadius: 10,
-		backgroundColor: "rgba(255,255,255,0.08)",
 		alignItems: "center",
 		justifyContent: "center",
 	},
-	pointIndexSelected: { backgroundColor: "#dc2626" },
-	pointIndexText: { color: "#fff", fontSize: 10, fontWeight: "700" },
-	pointName: { flex: 1, color: "#94a3b8", fontSize: 13 },
+	pointIndexSelected: {},
+	pointIndexText: { fontSize: 10, fontWeight: "700" },
+	pointName: { flex: 1, fontSize: 13 },
 	modalActions: { flexDirection: "row", gap: 12, marginTop: 20 },
-	cancelBtn: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: "rgba(255,255,255,0.06)", alignItems: "center" },
-	cancelText: { color: "#94a3b8", fontWeight: "600" },
-	saveBtn: { flex: 1, padding: 14, borderRadius: 10, backgroundColor: "#dc2626", alignItems: "center" },
-	saveText: { color: "#fff", fontWeight: "700" },
+	cancelBtn: { flex: 1, padding: 14, borderRadius: 10, alignItems: "center" },
+	cancelText: { fontWeight: "600" },
+	saveBtn: { flex: 1, padding: 14, borderRadius: 10, alignItems: "center" },
+	saveText: { fontWeight: "700" },
 });
