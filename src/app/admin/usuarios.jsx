@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
@@ -14,7 +14,6 @@ import { useAuth } from "../../context/AuthContext";
 import { useDialog } from "../../context/DialogContext";
 import { useAppTheme } from "../../context/ThemeContext";
 import {
-    type ApiUser,
     blockUser,
     deleteUser,
     getUsers,
@@ -30,12 +29,17 @@ export default function UsuariosScreen() {
 	const { token } = useAuth();
 	const { colors } = useAppTheme();
 	const { showDialog, showError, showConfirm } = useDialog();
-	const [users, setUsers] = useState<ApiUser[]>([]);
+	const [users, setUsers] = useState([]);
 	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
+	const [error, setError] = useState(null);
 
-	async function load() {
-		if (!token) return;
+	const load = useCallback(async () => {
+		if (!token) {
+			setUsers([]);
+			setError("Sessão inválida. Por favor, inicie sessão novamente.");
+			setLoading(false);
+			return;
+		}
 		setLoading(true);
 		setError(null);
 		try {
@@ -45,19 +49,25 @@ export default function UsuariosScreen() {
 		} finally {
 			setLoading(false);
 		}
-	}
+	}, [token]);
 
-	useEffect(() => { load(); }, []);
+	useEffect(() => {
+		load();
+	}, [load]);
 
-	function confirmDelete(user: ApiUser) {
+	function confirmDelete(user) {
 		showConfirm({
 			title: "Eliminar utilizador",
 			message: `Tens a certeza que queres eliminar "${user.name}"?`,
 			confirmText: "Eliminar",
 			confirmVariant: "destructive",
 			onConfirm: async () => {
+				if (!token) {
+					showError("Sessão inválida. Por favor, inicie sessão novamente.");
+					return;
+				}
 				try {
-					await deleteUser(user.id_user, token!);
+					await deleteUser(user.id_user, token);
 					await load();
 				} catch (e) {
 					showError(e instanceof Error ? e.message : "Erro ao eliminar.");
@@ -66,7 +76,7 @@ export default function UsuariosScreen() {
 		});
 	}
 
-	function promptRoleChange(user: ApiUser) {
+	function promptRoleChange(user) {
 		const otherRoles = ROLES.filter((r) => r !== user.Role.name);
 		showDialog({
 			title: "Alterar role",
@@ -76,8 +86,12 @@ export default function UsuariosScreen() {
 					text: `Mudar para ${role}`,
 					variant: "primary",
 					onPress: async () => {
+						if (!token) {
+							showError("Sessão inválida. Por favor, inicie sessão novamente.");
+							return;
+						}
 						try {
-							await updateUserRole(user.id_user, role, token!);
+							await updateUserRole(user.id_user, role, token);
 							await load();
 						} catch (e) {
 							showError(e instanceof Error ? e.message : "Erro ao atualizar.");
@@ -89,12 +103,16 @@ export default function UsuariosScreen() {
 		});
 	}
 
-	async function toggleBlock(user: ApiUser) {
+	async function toggleBlock(user) {
+		if (!token) {
+			showError("Sessão inválida. Por favor, inicie sessão novamente.");
+			return;
+		}
 		try {
 			if (user.active) {
-				await blockUser(user.id_user, token!);
+				await blockUser(user.id_user, token);
 			} else {
-				await unblockUser(user.id_user, token!);
+				await unblockUser(user.id_user, token);
 			}
 			await load();
 		} catch (e) {
@@ -102,7 +120,7 @@ export default function UsuariosScreen() {
 		}
 	}
 
-	function renderUser({ item }: { item: ApiUser }) {
+	function renderUser({ item }) {
 		return (
 			<View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
 				<View style={styles.cardInfo}>

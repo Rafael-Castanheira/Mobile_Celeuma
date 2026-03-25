@@ -1,26 +1,7 @@
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useAppTheme } from "../context/ThemeContext";
 
-export type AppDialogVariant = "default" | "info" | "success" | "warning" | "error";
-
-export type AppDialogButtonVariant = "primary" | "secondary" | "destructive";
-
-export type AppDialogButton = {
-	text: string;
-	variant?: AppDialogButtonVariant;
-	onPress?: () => void | Promise<void>;
-};
-
-export type AppDialogProps = {
-	visible: boolean;
-	variant?: AppDialogVariant;
-	title: string;
-	message?: string;
-	buttons?: AppDialogButton[];
-	onClose: () => void;
-};
-
-function getTitleColor(variant: AppDialogVariant, colors: ReturnType<typeof useAppTheme>["colors"]) {
+function getTitleColor(variant, colors) {
 	if (variant === "error") return colors.destructive;
 	if (variant === "warning") return colors.warning;
 	if (variant === "success") return colors.success;
@@ -28,7 +9,7 @@ function getTitleColor(variant: AppDialogVariant, colors: ReturnType<typeof useA
 	return colors.foreground;
 }
 
-function Button({ label, variant, onPress }: { label: string; variant: AppDialogButtonVariant; onPress: () => void }) {
+function Button({ label, variant, onPress }) {
 	const { colors } = useAppTheme();
 	const bg =
 		variant === "primary"
@@ -63,12 +44,11 @@ export default function AppDialog({
 	message,
 	buttons,
 	onClose,
-}: AppDialogProps) {
+}) {
 	const { colors } = useAppTheme();
-	const effectiveButtons: AppDialogButton[] =
-		buttons && buttons.length > 0 ? buttons : [{ text: "OK", variant: "primary" }];
+	const effectiveButtons = buttons && buttons.length > 0 ? buttons : [{ text: "OK", variant: "primary" }];
 
-	async function handlePress(btn: AppDialogButton) {
+	async function handlePress(btn) {
 		onClose();
 		try {
 			await btn.onPress?.();
@@ -78,12 +58,7 @@ export default function AppDialog({
 	}
 
 	return (
-		<Modal
-			visible={visible}
-			transparent
-			animationType="fade"
-			onRequestClose={onClose}
-		>
+		<Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
 			<View style={[styles.overlay, { backgroundColor: colors.overlay }]}>
 				<View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
 					<Text style={[styles.title, { color: getTitleColor(variant, colors) }]}>{title}</Text>

@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { Redirect, useRouter, type Href } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrandLogo from "../components/BrandLogo";
 import { useAuth } from "../context/AuthContext";
 import { useAppTheme } from "../context/ThemeContext";
-import { getLandingContent, loginUser, type LandingContent } from "../lib/360api";
+import { getLandingContent, loginUser } from "../lib/360api";
 import { getAuthenticatedHomeRoute, isAdminRole } from "../lib/auth";
 
 export default function Login() {
@@ -28,8 +28,8 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [landing, setLanding] = useState<LandingContent | null>(null);
+  const [error, setError] = useState(null);
+  const [landing, setLanding] = useState(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -56,9 +56,7 @@ export default function Login() {
     try {
       const { token, user } = await loginUser(email.trim(), password);
       setAuth(user, token);
-      router.replace(
-        (isAdminRole(user.role) ? "/admin" : getAuthenticatedHomeRoute(user.role)) as Href
-      );
+      router.replace(isAdminRole(user.role) ? "/admin" : getAuthenticatedHomeRoute(user.role));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro desconhecido.");
     } finally {

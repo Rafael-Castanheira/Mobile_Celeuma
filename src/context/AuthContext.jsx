@@ -1,28 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage/lib/commonjs";
-import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useState } from "react";
-import { getMe, type AuthUser } from "../lib/360api";
+import { getMe } from "../lib/360api";
 
 const AUTH_STORAGE_KEY = "@galerias360:auth";
 
-type PersistedAuth = {
-	token: string;
-	user: AuthUser;
-};
+const AuthContext = createContext(null);
 
-type AuthContextValue = {
-	user: AuthUser | null;
-	token: string | null;
-	isLoadingAuth: boolean;
-	setAuth: (user: AuthUser, token: string) => void;
-	clearAuth: () => void;
-};
-
-const AuthContext = createContext<AuthContextValue | null>(null);
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-	const [user, setUser] = useState<AuthUser | null>(null);
-	const [token, setToken] = useState<string | null>(null);
+export function AuthProvider({ children }) {
+	const [user, setUser] = useState(null);
+	const [token, setToken] = useState(null);
 	const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
 	useEffect(() => {
@@ -31,7 +17,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				const raw = await AsyncStorage.getItem(AUTH_STORAGE_KEY);
 				if (!raw) return;
 
-				const parsed = JSON.parse(raw) as Partial<PersistedAuth>;
+				const parsed = JSON.parse(raw);
 				if (!parsed?.token) return;
 
 				const refreshedUser = await getMe(parsed.token);

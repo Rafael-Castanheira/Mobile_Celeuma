@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Pressable,
@@ -13,36 +13,53 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
 import { useAppTheme } from "../../context/ThemeContext";
-import { type EstatisticasResumo, getEstatisticasResumo } from "../../lib/360api";
-
-type StatCard = { label: string; value: string | number; icon: React.ComponentProps<typeof Feather>["name"] };
+import { getEstatisticasResumo } from "../../lib/360api";
 
 export default function EstatisticasScreen() {
 	const router = useRouter();
 	const { top, bottom } = useSafeAreaInsets();
 	const { token } = useAuth();
 	const { colors } = useAppTheme();
-	const [stats, setStats] = useState<EstatisticasResumo | null>(null);
+	const [stats, setStats] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
-	const [error, setError] = useState<string | null>(null);
+	const [error, setError] = useState(null);
 
-	async function load(isRefresh = false) {
-		if (isRefresh) setRefreshing(true); else setLoading(true);
-		setError(null);
-		try {
-			setStats(await getEstatisticasResumo(token!));
-		} catch (e) {
-			setError(e instanceof Error ? e.message : "Erro desconhecido.");
-		} finally {
-			setLoading(false);
-			setRefreshing(false);
-		}
-	}
+	const load = useCallback(
+		async (isRefresh = false) => {
+			if (isRefresh) {
+				setRefreshing(true);
+			} else {
+				setLoading(true);
+			}
 
-	useEffect(() => { load(); }, []);
+			setError(null);
 
-	const cards: StatCard[] = stats
+			if (!token) {
+				setStats(null);
+				setError("Sessão inválida. Por favor, inicie sessão novamente.");
+				setLoading(false);
+				setRefreshing(false);
+				return;
+			}
+
+			try {
+				setStats(await getEstatisticasResumo(token));
+			} catch (e) {
+				setError(e instanceof Error ? e.message : "Erro desconhecido.");
+			} finally {
+				setLoading(false);
+				setRefreshing(false);
+			}
+		},
+		[token]
+	);
+
+	useEffect(() => {
+		load();
+	}, [load]);
+
+	const cards = stats
 		? [
 				{ label: "Total Visualizações", value: stats.totalVisualizacoes, icon: "eye" },
 				{ label: "Total Pontos", value: stats.totalPontos, icon: "map-pin" },

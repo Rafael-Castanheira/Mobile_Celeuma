@@ -17,8 +17,6 @@ import { useAuth } from "../../context/AuthContext";
 import { useDialog } from "../../context/DialogContext";
 import { useAppTheme } from "../../context/ThemeContext";
 import {
-    type MapPoint,
-    type MapRoute,
     createTrajeto,
     deleteRota,
     getMapPoints,
@@ -34,19 +32,19 @@ export default function TrajetosScreen() {
 	const { colors, refreshActiveTheme } = useAppTheme();
 	const { showError, showInfo, showConfirm } = useDialog();
 	const canCreateTrajeto = isAdminRole(user?.role);
-	const [routes, setRoutes] = useState<MapRoute[]>([]);
-	const [points, setPoints] = useState<MapPoint[]>([]);
+	const [routes, setRoutes] = useState([]);
+	const [points, setPoints] = useState([]);
 	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
+	const [error, setError] = useState(null);
 
 	// Create modal
 	const [createVisible, setCreateVisible] = useState(false);
-	const [selectedPointIds, setSelectedPointIds] = useState<number[]>([]);
+	const [selectedPointIds, setSelectedPointIds] = useState([]);
 	const [description, setDescription] = useState("");
 	const [saving, setSaving] = useState(false);
 
 	// Edit description modal
-	const [editRoute, setEditRoute] = useState<MapRoute | null>(null);
+	const [editRoute, setEditRoute] = useState(null);
 	const [editDesc, setEditDesc] = useState("");
 	const [editSaving, setEditSaving] = useState(false);
 
@@ -72,7 +70,7 @@ export default function TrajetosScreen() {
 		}, [refreshActiveTheme])
 	);
 
-	function togglePoint(id: number) {
+	function togglePoint(id) {
 		setSelectedPointIds((prev) =>
 			prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
 		);
@@ -83,13 +81,17 @@ export default function TrajetosScreen() {
 			showInfo("Apenas administradores podem criar trajetos.", "Sem permissão");
 			return;
 		}
+		if (!token) {
+			showError("Sessão inválida. Por favor, inicie sessão novamente.");
+			return;
+		}
 		if (selectedPointIds.length < 2) {
 			showError("Seleciona no mínimo 2 pontos.");
 			return;
 		}
 		setSaving(true);
 		try {
-			await createTrajeto({ pontos: selectedPointIds, description }, token!);
+			await createTrajeto({ pontos: selectedPointIds, description }, token);
 			setCreateVisible(false);
 			setSelectedPointIds([]);
 			setDescription("");
@@ -101,7 +103,7 @@ export default function TrajetosScreen() {
 		}
 	}
 
-	function openEdit(route: MapRoute) {
+	function openEdit(route) {
 		setEditRoute(route);
 		setEditDesc(route.name);
 		setEditSaving(false);
@@ -109,9 +111,13 @@ export default function TrajetosScreen() {
 
 	async function handleEditSave() {
 		if (!editRoute) return;
+		if (!token) {
+			showError("Sessão inválida. Por favor, inicie sessão novamente.");
+			return;
+		}
 		setEditSaving(true);
 		try {
-			await updateTrajetoDescription(editRoute.id, editDesc, token!);
+			await updateTrajetoDescription(editRoute.id, editDesc, token);
 			setEditRoute(null);
 			await load();
 		} catch (e) {
@@ -121,15 +127,19 @@ export default function TrajetosScreen() {
 		}
 	}
 
-	function confirmDelete(route: MapRoute) {
+	function confirmDelete(route) {
 		showConfirm({
 			title: "Eliminar rota",
 			message: `Tens a certeza que queres eliminar "${route.name}" e todos os seus trajetos?`,
 			confirmText: "Eliminar",
 			confirmVariant: "destructive",
 			onConfirm: async () => {
+				if (!token) {
+					showError("Sessão inválida. Por favor, inicie sessão novamente.");
+					return;
+				}
 				try {
-					await deleteRota(route.id, token!);
+					await deleteRota(route.id, token);
 					await load();
 				} catch (e) {
 					showError(e instanceof Error ? e.message : "Erro ao eliminar.");
@@ -138,7 +148,7 @@ export default function TrajetosScreen() {
 		});
 	}
 
-	function renderRoute({ item }: { item: MapRoute }) {
+	function renderRoute({ item }) {
 		return (
 			<View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.accentSoft }]}>
 				<View style={[styles.cardAccent, { backgroundColor: colors.primary }]} />

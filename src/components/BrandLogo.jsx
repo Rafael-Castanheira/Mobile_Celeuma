@@ -2,13 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { Image, StyleSheet, View } from "react-native";
 import { useAppTheme } from "../context/ThemeContext";
 
-type BrandLogoProps = {
-	size?: number;
-	iconSize?: number;
-	withFrame?: boolean;
-};
-
-export default function BrandLogo({ size = 88, iconSize = 40, withFrame = true }: BrandLogoProps) {
+export default function BrandLogo({ size = 88, iconSize = 40, withFrame = true }) {
 	const { colors, logoUrl } = useAppTheme();
 
 	return (
@@ -27,7 +21,11 @@ export default function BrandLogo({ size = 88, iconSize = 40, withFrame = true }
 			]}
 		>
 			{logoUrl ? (
-				<Image source={{ uri: logoUrl }} style={{ width: size * 0.66, height: size * 0.66 }} resizeMode="contain" />
+				<Image
+					source={{ uri: logoUrl }}
+					style={{ width: size * 0.66, height: size * 0.66 }}
+					resizeMode="contain"
+				/>
 			) : (
 				<Feather name="aperture" size={iconSize} color={colors.primary} />
 			)}

@@ -4,39 +4,28 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
-	ActivityIndicator,
-	FlatList,
-	Modal,
-	Pressable,
-	StyleSheet,
-	Text,
-	TextInput,
-	View,
+    ActivityIndicator,
+    FlatList,
+    Modal,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
 import { useDialog } from "../../context/DialogContext";
 import { useAppTheme } from "../../context/ThemeContext";
 import {
-	type MapPoint,
-	type PointCategory,
-	type UploadImageFile,
-	createPonto,
-	deletePonto,
-	getMapPoints,
-	getPointCategories,
-	updatePonto,
+    createPonto,
+    deletePonto,
+    getMapPoints,
+    getPointCategories,
+    updatePonto,
 } from "../../lib/360api";
 
-type PontoForm = {
-	name: string;
-	description: string;
-	latitude: string;
-	longitude: string;
-	categoryIds: number[];
-};
-
-const EMPTY_FORM: PontoForm = { name: "", description: "", latitude: "", longitude: "", categoryIds: [] };
+const EMPTY_FORM = { name: "", description: "", latitude: "", longitude: "", categoryIds: [] };
 
 export default function PontosScreen() {
 	const router = useRouter();
@@ -44,15 +33,15 @@ export default function PontosScreen() {
 	const { token, user } = useAuth();
 	const { colors, refreshActiveTheme } = useAppTheme();
 	const { showError, showInfo, showConfirm } = useDialog();
-	const [points, setPoints] = useState<MapPoint[]>([]);
+	const [points, setPoints] = useState([]);
 	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
+	const [error, setError] = useState(null);
 	const [modalVisible, setModalVisible] = useState(false);
-	const [editing, setEditing] = useState<MapPoint | null>(null);
-	const [form, setForm] = useState<PontoForm>(EMPTY_FORM);
+	const [editing, setEditing] = useState(null);
+	const [form, setForm] = useState(EMPTY_FORM);
 	const [saving, setSaving] = useState(false);
-	const [categories, setCategories] = useState<PointCategory[]>([]);
-	const [createImage, setCreateImage] = useState<UploadImageFile | null>(null);
+	const [categories, setCategories] = useState([]);
+	const [createImage, setCreateImage] = useState(null);
 
 	async function load() {
 		setLoading(true);
@@ -83,7 +72,7 @@ export default function PontosScreen() {
 		setModalVisible(true);
 	}
 
-	function openEdit(point: MapPoint) {
+	function openEdit(point) {
 		setEditing(point);
 		setCreateImage(null);
 		setForm({
@@ -121,6 +110,10 @@ export default function PontosScreen() {
 	}
 
 	async function handleSave() {
+		if (!token) {
+			showError("Sessão inválida. Por favor, inicie sessão novamente.");
+			return;
+		}
 		const lat = parseFloat(form.latitude);
 		const lon = parseFloat(form.longitude);
 		if (!form.name.trim()) {
@@ -147,7 +140,7 @@ export default function PontosScreen() {
 		setSaving(true);
 		try {
 			if (editing) {
-				await updatePonto(editing.id, { name: form.name, description: form.description, latitude: lat, longitude: lon }, token!);
+				await updatePonto(editing.id, { name: form.name, description: form.description, latitude: lat, longitude: lon }, token);
 			} else {
 				await createPonto({
 					name: form.name,
@@ -158,7 +151,7 @@ export default function PontosScreen() {
 					imagePath: "",
 					imageFile: createImage || undefined,
 					username: user?.name,
-				}, token!);
+				}, token);
 			}
 			setModalVisible(false);
 			await load();
@@ -169,15 +162,19 @@ export default function PontosScreen() {
 		}
 	}
 
-	function confirmDelete(point: MapPoint) {
+	function confirmDelete(point) {
 		showConfirm({
 			title: "Eliminar ponto",
 			message: `Tens a certeza que queres eliminar "${point.title}"?`,
 			confirmText: "Eliminar",
 			confirmVariant: "destructive",
 			onConfirm: async () => {
+				if (!token) {
+					showError("Sessão inválida. Por favor, inicie sessão novamente.");
+					return;
+				}
 				try {
-					await deletePonto(point.id, token!);
+					await deletePonto(point.id, token);
 					await load();
 				} catch (e) {
 					showError(e instanceof Error ? e.message : "Erro ao eliminar.");
@@ -186,7 +183,7 @@ export default function PontosScreen() {
 		});
 	}
 
-	function renderPoint({ item }: { item: MapPoint }) {
+	function renderPoint({ item }) {
 		return (
 			<View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.accentSoft }]}>
 				<View style={[styles.cardAccent, { backgroundColor: colors.primary }]} />

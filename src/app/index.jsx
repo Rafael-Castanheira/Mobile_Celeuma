@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrandLogo from "../components/BrandLogo";
 import { useAuth } from "../context/AuthContext";
 import { useAppTheme } from "../context/ThemeContext";
-import { getLandingContent, type LandingContent } from "../lib/360api";
+import { getLandingContent } from "../lib/360api";
 import { getAuthenticatedHomeRoute } from "../lib/auth";
 
 export default function Root() {
@@ -14,7 +14,7 @@ export default function Root() {
 	const { top, bottom } = useSafeAreaInsets();
 	const router = useRouter();
 	const { colors, activePreset } = useAppTheme();
-	const [landing, setLanding] = useState<LandingContent | null>(null);
+	const [landing, setLanding] = useState(null);
 
 	useEffect(() => {
 		const controller = new AbortController();

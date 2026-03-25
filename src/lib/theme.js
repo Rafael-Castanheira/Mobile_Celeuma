@@ -1,45 +1,4 @@
-import type { ThemePreset } from "./360api";
-
-export type ThemeVariableMap = Record<string, string>;
-
-export type AppThemeColors = {
-	background: string;
-	foreground: string;
-	card: string;
-	cardForeground: string;
-	popover: string;
-	popoverForeground: string;
-	primary: string;
-	primaryForeground: string;
-	secondary: string;
-	secondaryForeground: string;
-	muted: string;
-	mutedForeground: string;
-	accent: string;
-	accentForeground: string;
-	destructive: string;
-	destructiveForeground: string;
-	border: string;
-	input: string;
-	ring: string;
-	chart1: string;
-	chart2: string;
-	chart3: string;
-	chart4: string;
-	chart5: string;
-	overlay: string;
-	softOverlay: string;
-	shadow: string;
-	success: string;
-	warning: string;
-	info: string;
-	placeholder: string;
-	buttonDisabled: string;
-	iconMuted: string;
-	accentSoft: string;
-};
-
-export const DEFAULT_LIGHT_VARS: ThemeVariableMap = {
+export const DEFAULT_LIGHT_VARS = {
 	background: "0 0% 100%",
 	foreground: "0 0% 3.9%",
 	card: "0 0% 100%",
@@ -66,7 +25,7 @@ export const DEFAULT_LIGHT_VARS: ThemeVariableMap = {
 	"chart-5": "27 87% 67%",
 };
 
-export const DEFAULT_DARK_VARS: ThemeVariableMap = {
+export const DEFAULT_DARK_VARS = {
 	background: "222 24% 8%",
 	foreground: "0 0% 96%",
 	card: "222 20% 12%",
@@ -93,7 +52,7 @@ export const DEFAULT_DARK_VARS: ThemeVariableMap = {
 	"chart-5": "340 75% 55%",
 };
 
-function normalizeAlpha(alpha: string): string {
+function normalizeAlpha(alpha) {
 	const trimmed = alpha.trim();
 	if (trimmed.endsWith("%")) {
 		const numeric = Number(trimmed.slice(0, -1));
@@ -104,9 +63,11 @@ function normalizeAlpha(alpha: string): string {
 	return "1";
 }
 
-function parseHslToken(value: string): { h: string; s: string; l: string; a?: string } | null {
+function parseHslToken(value) {
 	const trimmed = value.trim();
-	const tokenMatch = trimmed.match(/^(-?\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?%)\s+(\d+(?:\.\d+)?%)(?:\s*\/\s*(\d+(?:\.\d+)?%?))?$/);
+	const tokenMatch = trimmed.match(
+		/^(-?\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?%)\s+(\d+(?:\.\d+)?%)(?:\s*\/\s*(\d+(?:\.\d+)?%?))?$/
+	);
 	if (tokenMatch) {
 		return {
 			h: tokenMatch[1],
@@ -135,15 +96,12 @@ function parseHslToken(value: string): { h: string; s: string; l: string; a?: st
 	};
 }
 
-export function isThemeColorValue(value: string): boolean {
+export function isThemeColorValue(value) {
 	const trimmed = value.trim();
-	return (
-		/^(#|rgb\(|rgba\(|hsl\(|hsla\()/i.test(trimmed) ||
-		parseHslToken(trimmed) !== null
-	);
+	return /^(#|rgb\(|rgba\(|hsl\(|hsla\()/i.test(trimmed) || parseHslToken(trimmed) !== null;
 }
 
-export function normalizeThemeColor(value: string): string {
+export function normalizeThemeColor(value) {
 	const trimmed = value.trim();
 	if (/^(#|rgb\(|rgba\()/i.test(trimmed)) return trimmed;
 
@@ -157,7 +115,7 @@ export function normalizeThemeColor(value: string): string {
 	return `hsl(${hsl.h}, ${hsl.s}, ${hsl.l})`;
 }
 
-export function withOpacity(value: string, opacity: number): string {
+export function withOpacity(value, opacity) {
 	const hsl = parseHslToken(value);
 	if (hsl) {
 		return `hsla(${hsl.h}, ${hsl.s}, ${hsl.l}, ${Math.max(0, Math.min(1, opacity))})`;
@@ -165,7 +123,7 @@ export function withOpacity(value: string, opacity: number): string {
 	return value;
 }
 
-export function resolveThemeVars(mode: "light" | "dark", activePreset: ThemePreset | null): ThemeVariableMap {
+export function resolveThemeVars(mode, activePreset) {
 	const fallback = mode === "dark" ? DEFAULT_DARK_VARS : DEFAULT_LIGHT_VARS;
 	const overrides = mode === "dark" ? activePreset?.darkVars : activePreset?.lightVars;
 	return {
@@ -174,7 +132,7 @@ export function resolveThemeVars(mode: "light" | "dark", activePreset: ThemePres
 	};
 }
 
-export function getThemeLogo(activePreset: ThemePreset | null, mode: "light" | "dark"): string | null {
+export function getThemeLogo(activePreset, mode) {
 	if (!activePreset) return null;
 	if (mode === "dark") {
 		return activePreset.logoDarkUrl ?? activePreset.logoLightUrl ?? null;
@@ -182,7 +140,7 @@ export function getThemeLogo(activePreset: ThemePreset | null, mode: "light" | "
 	return activePreset.logoLightUrl ?? activePreset.logoDarkUrl ?? null;
 }
 
-export function buildThemeColors(mode: "light" | "dark", activePreset: ThemePreset | null): AppThemeColors {
+export function buildThemeColors(mode, activePreset) {
 	const vars = resolveThemeVars(mode, activePreset);
 	const background = normalizeThemeColor(vars.background);
 	const foreground = normalizeThemeColor(vars.foreground);

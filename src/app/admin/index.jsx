@@ -7,14 +7,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useAppTheme } from "../../context/ThemeContext";
 import { isAdminRole } from "../../lib/auth";
 
-type QuickAction = {
-	icon: React.ComponentProps<typeof Feather>["name"];
-	label: string;
-	description: string;
-	route: string;
-};
-
-const QUICK_ACTIONS: QuickAction[] = [
+const QUICK_ACTIONS = [
 	{
 		icon: "map",
 		label: "Mapa",
@@ -118,7 +111,7 @@ export default function AdminDashboard() {
 							{ backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
 							pressed && [styles.actionCardPressed, { borderColor: colors.primary }],
 						]}
-						onPress={() => router.push(action.route as never)}
+						onPress={() => router.push(action.route)}
 					>
 						<View style={[styles.actionIconCircle, { backgroundColor: colors.accentSoft }]}>
 							<Feather name={action.icon} size={22} color={colors.primary} />

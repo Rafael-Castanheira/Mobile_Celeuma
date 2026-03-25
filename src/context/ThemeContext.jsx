@@ -1,26 +1,14 @@
-import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useColorScheme } from "react-native";
-import { getActiveThemePreset, type ThemePreset } from "../lib/360api";
-import { buildThemeColors, getThemeLogo, resolveThemeVars, type AppThemeColors, type ThemeVariableMap } from "../lib/theme";
+import { getActiveThemePreset } from "../lib/360api";
+import { buildThemeColors, getThemeLogo, resolveThemeVars } from "../lib/theme";
 
-type ThemeContextValue = {
-	mode: "light" | "dark";
-	isDark: boolean;
-	colors: AppThemeColors;
-	vars: ThemeVariableMap;
-	activePreset: ThemePreset | null;
-	logoUrl: string | null;
-	isLoadingTheme: boolean;
-	refreshActiveTheme: () => Promise<void>;
-};
+const ThemeContext = createContext(null);
 
-const ThemeContext = createContext<ThemeContextValue | null>(null);
-
-export function ThemeProvider({ children }: { children: ReactNode }) {
+export function ThemeProvider({ children }) {
 	const colorScheme = useColorScheme();
-	const mode: "light" | "dark" = colorScheme === "light" ? "light" : "dark";
-	const [activePreset, setActivePreset] = useState<ThemePreset | null>(null);
+	const mode = colorScheme === "light" ? "light" : "dark";
+	const [activePreset, setActivePreset] = useState(null);
 	const [isLoadingTheme, setIsLoadingTheme] = useState(true);
 
 	const refreshActiveTheme = useCallback(async () => {
@@ -38,7 +26,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 		refreshActiveTheme();
 	}, [refreshActiveTheme]);
 
-	const value = useMemo<ThemeContextValue>(() => {
+	const value = useMemo(() => {
 		const colors = buildThemeColors(mode, activePreset);
 		return {
 			mode,

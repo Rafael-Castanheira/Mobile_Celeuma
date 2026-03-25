@@ -1,77 +1,40 @@
-import type { ReactNode } from "react";
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import AppDialog, {
-    type AppDialogButton,
-    type AppDialogButtonVariant,
-    type AppDialogVariant,
-} from "../components/AppDialog";
+import AppDialog from "../components/AppDialog";
 
-export type DialogOptions = {
-	variant?: AppDialogVariant;
-	title: string;
-	message?: string;
-	buttons?: AppDialogButton[];
-};
+const DialogContext = createContext(null);
 
-type DialogContextValue = {
-	showDialog: (options: DialogOptions) => void;
-	showError: (message: string, title?: string) => void;
-	showInfo: (message: string, title?: string) => void;
-	showSuccess: (message: string, title?: string) => void;
-	showConfirm: (options: {
-		title: string;
-		message?: string;
-		confirmText?: string;
-		cancelText?: string;
-		confirmVariant?: AppDialogButtonVariant;
-		onConfirm: () => void | Promise<void>;
-	}) => void;
-	hideDialog: () => void;
-};
-
-type ConfirmOptions = {
-	title: string;
-	message?: string;
-	confirmText?: string;
-	cancelText?: string;
-	confirmVariant?: AppDialogButtonVariant;
-	onConfirm: () => void | Promise<void>;
-};
-
-const DialogContext = createContext<DialogContextValue | null>(null);
-
-export function DialogProvider({ children }: { children: ReactNode }) {
-	const [dialog, setDialog] = useState<DialogOptions | null>(null);
+export function DialogProvider({ children }) {
+	const [dialog, setDialog] = useState(null);
 
 	const hideDialog = useCallback(() => setDialog(null), []);
 
-	const showDialog = useCallback((options: DialogOptions) => {
+	const showDialog = useCallback((options) => {
 		setDialog(options);
 	}, []);
 
 	const showError = useCallback(
-		(message: string, title = "Erro") => {
+		(message, title = "Erro") => {
 			showDialog({ variant: "error", title, message, buttons: [{ text: "OK", variant: "primary" }] });
 		},
 		[showDialog]
 	);
 
 	const showInfo = useCallback(
-		(message: string, title = "Aviso") => {
+		(message, title = "Aviso") => {
 			showDialog({ variant: "info", title, message, buttons: [{ text: "OK", variant: "primary" }] });
 		},
 		[showDialog]
 	);
 
 	const showSuccess = useCallback(
-		(message: string, title = "Sucesso") => {
+		(message, title = "Sucesso") => {
 			showDialog({ variant: "success", title, message, buttons: [{ text: "OK", variant: "primary" }] });
 		},
 		[showDialog]
 	);
 
 	const showConfirm = useCallback(
-		(options: ConfirmOptions) => {
+		(options) => {
 			const {
 				title,
 				message,
@@ -94,7 +57,7 @@ export function DialogProvider({ children }: { children: ReactNode }) {
 		[showDialog]
 	);
 
-	const value = useMemo<DialogContextValue>(
+	const value = useMemo(
 		() => ({ showDialog, showError, showInfo, showSuccess, showConfirm, hideDialog }),
 		[hideDialog, showConfirm, showDialog, showError, showInfo, showSuccess]
 	);

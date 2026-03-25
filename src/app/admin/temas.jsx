@@ -15,7 +15,6 @@ import { useAuth } from "../../context/AuthContext";
 import { useDialog } from "../../context/DialogContext";
 import { useAppTheme } from "../../context/ThemeContext";
 import {
-    type ThemePreset,
     getThemePresets,
     setActiveThemePreset,
 } from "../../lib/360api";
@@ -33,27 +32,27 @@ const PREFERRED_THEME_KEYS = [
 	"border",
 ];
 
-function isColorLike(value: string): boolean {
+function isColorLike(value) {
 	return isThemeColorValue(value);
 }
 
-function getPreviewColors(vars: ThemePreset["lightVars"] | ThemePreset["darkVars"]): string[] {
+function getPreviewColors(vars) {
 	if (!vars) return [];
 
 	const entries = Object.entries(vars).filter(([, value]) => isColorLike(value));
 	const preferred = PREFERRED_THEME_KEYS
 		.map((key) => vars[key])
-		.filter((value): value is string => typeof value === "string" && isColorLike(value));
+		.filter((value) => typeof value === "string" && isColorLike(value));
 	const fallback = entries.map(([, value]) => value);
 
 	return [...new Set([...preferred, ...fallback])].map((value) => normalizeThemeColor(value)).slice(0, 4);
 }
 
-function countThemeVars(theme: ThemePreset): number {
+function countThemeVars(theme) {
 	return Object.keys(theme.lightVars ?? {}).length + Object.keys(theme.darkVars ?? {}).length;
 }
 
-function ThemePreviewRow({ label, colors }: { label: string; colors: string[] }) {
+function ThemePreviewRow({ label, colors }) {
 	return (
 		<View style={styles.previewRow}>
 			<Text style={styles.previewLabel}>{label}</Text>
@@ -79,11 +78,11 @@ export default function TemasScreen() {
 	const { token } = useAuth();
 	const { colors, activePreset, refreshActiveTheme } = useAppTheme();
 	const { showError } = useDialog();
-	const [themes, setThemes] = useState<ThemePreset[]>([]);
+	const [themes, setThemes] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
-	const [error, setError] = useState<string | null>(null);
-	const [submittingId, setSubmittingId] = useState<number | "default" | null>(null);
+	const [error, setError] = useState(null);
+	const [submittingId, setSubmittingId] = useState(null);
 
 	async function load(isRefresh = false) {
 		if (isRefresh) {
@@ -108,7 +107,7 @@ export default function TemasScreen() {
 		load();
 	}, []);
 
-	async function handleActivate(theme: ThemePreset) {
+	async function handleActivate(theme) {
 		if (!token) {
 			showError("Sessão inválida. Inicia sessão novamente.");
 			return;
