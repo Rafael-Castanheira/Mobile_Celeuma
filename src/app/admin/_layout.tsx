@@ -1,12 +1,14 @@
-import { Redirect, Stack } from "expo-router";
+import { Redirect, Stack, usePathname } from "expo-router";
 import { ActivityIndicator, View } from "react-native";
 import { useAuth } from "../../context/AuthContext";
 import { useAppTheme } from "../../context/ThemeContext";
-import { getAuthenticatedHomeRoute, isAdminRole } from "../../lib/auth";
+import { isAdminRole } from "../../lib/auth";
 
 export default function AdminLayout() {
-	const { colors } = useAppTheme();
+	const { colors, mode, activePreset } = useAppTheme();
 	const { user, isLoadingAuth } = useAuth();
+	const pathname = usePathname();
+	const stackThemeKey = `${mode}-${activePreset?.id_theme_preset ?? "default"}`;
 
 	if (isLoadingAuth) {
 		return (
@@ -20,12 +22,13 @@ export default function AdminLayout() {
 		return <Redirect href="/login" />;
 	}
 
-	if (!isAdminRole(user.role)) {
-		return <Redirect href={getAuthenticatedHomeRoute(user.role)} />;
+	if (!isAdminRole(user.role) && pathname !== "/admin") {
+		return <Redirect href="/admin" />;
 	}
 
 	return (
 		<Stack
+			key={stackThemeKey}
 			screenOptions={{
 				headerShown: false,
 				contentStyle: { backgroundColor: colors.background },

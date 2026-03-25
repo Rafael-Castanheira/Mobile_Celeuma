@@ -1,9 +1,9 @@
 import { Feather } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     Modal,
     Pressable,
@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
+import { useDialog } from "../../context/DialogContext";
 import { useAppTheme } from "../../context/ThemeContext";
 import {
     type MapPoint,
@@ -24,12 +25,15 @@ import {
     getMapRoutes,
     updateTrajetoDescription,
 } from "../../lib/360api";
+import { isAdminRole } from "../../lib/auth";
 
 export default function TrajetosScreen() {
 	const router = useRouter();
 	const { top, bottom } = useSafeAreaInsets();
-	const { token } = useAuth();
-	const { colors } = useAppTheme();
+	const { token, user } = useAuth();
+	const { colors, refreshActiveTheme } = useAppTheme();
+	const { showError, showInfo, showConfirm } = useDialog();
+	const canCreateTrajeto = isAdminRole(user?.role);
 	const [routes, setRoutes] = useState<MapRoute[]>([]);
 	const [points, setPoints] = useState<MapPoint[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -62,6 +66,12 @@ export default function TrajetosScreen() {
 
 	useEffect(() => { load(); }, []);
 
+	useFocusEffect(
+		useCallback(() => {
+			void refreshActiveTheme();
+		}, [refreshActiveTheme])
+	);
+
 	function togglePoint(id: number) {
 		setSelectedPointIds((prev) =>
 			prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
@@ -69,8 +79,12 @@ export default function TrajetosScreen() {
 	}
 
 	async function handleCreate() {
+		if (!canCreateTrajeto) {
+			showInfo("Apenas administradores podem criar trajetos.", "Sem permissão");
+			return;
+		}
 		if (selectedPointIds.length < 2) {
-			Alert.alert("Erro", "Seleciona no mínimo 2 pontos.");
+			showError("Seleciona no mínimo 2 pontos.");
 			return;
 		}
 		setSaving(true);
@@ -81,7 +95,7 @@ export default function TrajetosScreen() {
 			setDescription("");
 			await load();
 		} catch (e) {
-			Alert.alert("Erro", e instanceof Error ? e.message : "Erro ao criar trajeto.");
+			showError(e instanceof Error ? e.message : "Erro ao criar trajeto.");
 		} finally {
 			setSaving(false);
 		}
@@ -101,47 +115,43 @@ export default function TrajetosScreen() {
 			setEditRoute(null);
 			await load();
 		} catch (e) {
-			Alert.alert("Erro", e instanceof Error ? e.message : "Erro ao guardar.");
+			showError(e instanceof Error ? e.message : "Erro ao guardar.");
 		} finally {
 			setEditSaving(false);
 		}
 	}
 
 	function confirmDelete(route: MapRoute) {
-		Alert.alert(
-			"Eliminar rota",
-			`Tens a certeza que queres eliminar "${route.name}" e todos os seus trajetos?`,
-			[
-				{ text: "Cancelar", style: "cancel" },
-				{
-					text: "Eliminar",
-					style: "destructive",
-					onPress: async () => {
-						try {
-							await deleteRota(route.id, token!);
-							await load();
-						} catch (e) {
-							Alert.alert("Erro", e instanceof Error ? e.message : "Erro ao eliminar.");
-						}
-					},
-				},
-			]
-		);
+		showConfirm({
+			title: "Eliminar rota",
+			message: `Tens a certeza que queres eliminar "${route.name}" e todos os seus trajetos?`,
+			confirmText: "Eliminar",
+			confirmVariant: "destructive",
+			onConfirm: async () => {
+				try {
+					await deleteRota(route.id, token!);
+					await load();
+				} catch (e) {
+					showError(e instanceof Error ? e.message : "Erro ao eliminar.");
+				}
+			},
+		});
 	}
 
 	function renderRoute({ item }: { item: MapRoute }) {
 		return (
-			<View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+			<View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.accentSoft }]}>
+				<View style={[styles.cardAccent, { backgroundColor: colors.primary }]} />
 				<View style={{ flex: 1 }}>
-					<Text style={[styles.cardTitle, { color: colors.foreground }]}>{item.name}</Text>
+					<Text style={[styles.cardTitle, { color: colors.primary }]}>{item.name}</Text>
 					<Text style={[styles.cardSub, { color: colors.mutedForeground }]}>{item.pointIds.length} pontos</Text>
 				</View>
 				<View style={styles.actions}>
-					<Pressable style={styles.actionBtn} onPress={() => openEdit(item)}>
-						<Feather name="edit-2" size={16} color={colors.iconMuted} />
+					<Pressable style={[styles.actionBtn, { backgroundColor: colors.accentSoft }]} onPress={() => openEdit(item)}>
+						<Feather name="edit-2" size={16} color={colors.primary} />
 					</Pressable>
-					<Pressable style={styles.actionBtn} onPress={() => confirmDelete(item)}>
-						<Feather name="trash-2" size={16} color={colors.destructive} />
+					<Pressable style={[styles.actionBtn, { backgroundColor: colors.accentSoft }]} onPress={() => confirmDelete(item)}>
+						<Feather name="trash-2" size={16} color={colors.primary} />
 					</Pressable>
 				</View>
 			</View>
@@ -151,13 +161,17 @@ export default function TrajetosScreen() {
 	return (
 		<View style={[styles.container, { backgroundColor: colors.background, paddingTop: top }]}>
 			<View style={[styles.header, { borderBottomColor: colors.border }]}>
-				<Pressable onPress={() => router.back()} style={styles.backBtn}>
-					<Feather name="arrow-left" size={20} color={colors.foreground} />
+				<Pressable onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
+					<Feather name="arrow-left" size={20} color={colors.primary} />
 				</Pressable>
-				<Text style={[styles.title, { color: colors.foreground }]}>Trajetos</Text>
-				<Pressable onPress={() => { setSelectedPointIds([]); setDescription(""); setCreateVisible(true); }} style={styles.backBtn}>
-					<Feather name="plus" size={22} color={colors.foreground} />
-				</Pressable>
+				<Text style={[styles.title, { color: colors.primary }]}>Trajetos</Text>
+				{canCreateTrajeto ? (
+					<Pressable onPress={() => { setSelectedPointIds([]); setDescription(""); setCreateVisible(true); }} style={[styles.backBtn, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
+						<Feather name="plus" size={22} color={colors.primary} />
+					</Pressable>
+				) : (
+					<View style={styles.backBtnPlaceholder} />
+				)}
 			</View>
 
 			{loading && <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />}
@@ -265,7 +279,8 @@ const styles = StyleSheet.create({
 		paddingVertical: 14,
 		borderBottomWidth: 1,
 	},
-	backBtn: { padding: 6 },
+	backBtn: { padding: 6, borderWidth: 1, borderRadius: 999 },
+	backBtnPlaceholder: { width: 34, height: 34 },
 	title: { fontSize: 18, fontWeight: "700" },
 	errorText: { textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
 	emptyText: { textAlign: "center", marginTop: 40 },
@@ -276,10 +291,16 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		alignItems: "center",
 	},
+	cardAccent: {
+		width: 3,
+		height: "100%",
+		borderRadius: 999,
+		marginRight: 12,
+	},
 	cardTitle: { fontWeight: "600", fontSize: 14 },
 	cardSub: { fontSize: 12, marginTop: 2 },
 	actions: { flexDirection: "row", gap: 4 },
-	actionBtn: { padding: 8 },
+	actionBtn: { padding: 8, borderRadius: 10 },
 	modalOverlay: { flex: 1, justifyContent: "flex-end" },
 	modalBox: {
 		borderTopLeftRadius: 20,

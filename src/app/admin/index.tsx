@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrandLogo from "../../components/BrandLogo";
 import { useAuth } from "../../context/AuthContext";
 import { useAppTheme } from "../../context/ThemeContext";
+import { isAdminRole } from "../../lib/auth";
 
 type QuickAction = {
 	icon: React.ComponentProps<typeof Feather>["name"];
@@ -51,6 +52,10 @@ export default function AdminDashboard() {
 	const { top, bottom } = useSafeAreaInsets();
 	const { user, clearAuth } = useAuth();
 	const { colors, activePreset } = useAppTheme();
+	const canManageContent = isAdminRole(user?.role);
+	const quickActions = canManageContent
+		? QUICK_ACTIONS
+		: QUICK_ACTIONS.filter((action) => !["Pontos", "Trajetos", "Estatísticas"].includes(action.label));
 
 	function handleLogout() {
 		clearAuth();
@@ -78,7 +83,7 @@ export default function AdminDashboard() {
 					) : null}
 					<View style={[styles.badge, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
 						<Feather name="shield" size={11} color={colors.primary} />
-						<Text style={[styles.badgeText, { color: colors.primary }]}>Admin</Text>
+						<Text style={[styles.badgeText, { color: colors.primary }]}>{canManageContent ? "Admin" : "Utilizador"}</Text>
 					</View>
 				</View>
 				<Pressable onPress={handleLogout} style={[styles.logoutBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -105,7 +110,7 @@ export default function AdminDashboard() {
 			{/* Ações rápidas */}
 			<Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Gestão</Text>
 			<View style={styles.actionsGrid}>
-				{QUICK_ACTIONS.map((action) => (
+				{quickActions.map((action) => (
 					<Pressable
 						key={action.label}
 						style={({ pressed }) => [

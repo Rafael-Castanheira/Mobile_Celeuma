@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -13,6 +12,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
+import { useDialog } from "../../context/DialogContext";
 import { useAppTheme } from "../../context/ThemeContext";
 import {
     type ThemePreset,
@@ -78,6 +78,7 @@ export default function TemasScreen() {
 	const { top, bottom } = useSafeAreaInsets();
 	const { token } = useAuth();
 	const { colors, activePreset, refreshActiveTheme } = useAppTheme();
+	const { showError } = useDialog();
 	const [themes, setThemes] = useState<ThemePreset[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
@@ -109,7 +110,7 @@ export default function TemasScreen() {
 
 	async function handleActivate(theme: ThemePreset) {
 		if (!token) {
-			Alert.alert("Erro", "Sessão inválida. Inicia sessão novamente.");
+			showError("Sessão inválida. Inicia sessão novamente.");
 			return;
 		}
 
@@ -118,7 +119,7 @@ export default function TemasScreen() {
 			await setActiveThemePreset(theme.id_theme_preset, token);
 			await refreshActiveTheme();
 		} catch (err) {
-			Alert.alert("Erro", err instanceof Error ? err.message : "Erro ao definir tema ativo.");
+			showError(err instanceof Error ? err.message : "Erro ao definir tema ativo.");
 		} finally {
 			setSubmittingId(null);
 		}
@@ -126,7 +127,7 @@ export default function TemasScreen() {
 
 	async function handleReset() {
 		if (!token) {
-			Alert.alert("Erro", "Sessão inválida. Inicia sessão novamente.");
+			showError("Sessão inválida. Inicia sessão novamente.");
 			return;
 		}
 
@@ -135,7 +136,7 @@ export default function TemasScreen() {
 			await setActiveThemePreset(null, token);
 			await refreshActiveTheme();
 		} catch (err) {
-			Alert.alert("Erro", err instanceof Error ? err.message : "Erro ao repor o tema padrão.");
+			showError(err instanceof Error ? err.message : "Erro ao repor o tema padrão.");
 		} finally {
 			setSubmittingId(null);
 		}

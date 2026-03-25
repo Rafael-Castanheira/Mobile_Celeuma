@@ -14,6 +14,17 @@ export type MapRoute = {
 	video?: string;
 };
 
+export type PointCategory = {
+	id_categoria: number;
+	name: string;
+};
+
+export type UploadImageFile = {
+	uri: string;
+	name?: string;
+	type?: string;
+};
+
 type ApiPonto = {
 	id_ponto: number;
 	name: string;
@@ -78,8 +89,10 @@ export type LandingContent = {
 
 const BASE_URL = "http://100.68.232.113:3000";
 const POINTS_ENDPOINT = `${BASE_URL}/ponto/list`;
+const POINT_CATEGORIES_ENDPOINT = `${BASE_URL}/categoria/list`;
 const ROUTES_ENDPOINT = `${BASE_URL}/trajeto/list`;
 const LOGIN_ENDPOINT = `${BASE_URL}/auth/login`;
+const REGISTER_ENDPOINT = `${BASE_URL}/auth/registo`;
 const ME_ENDPOINT = `${BASE_URL}/auth/me`;
 const REQUEST_TIMEOUT_MS = 15000;
 
@@ -287,6 +300,32 @@ export async function getMapPoints(signal?: AbortSignal): Promise<MapPoint[]> {
 		.map(toMapPoint);
 }
 
+export async function getPointCategories(signal?: AbortSignal): Promise<PointCategory[]> {
+	const response = await fetch(POINT_CATEGORIES_ENDPOINT, {
+		method: "GET",
+		headers: {
+			Accept: "application/json",
+		},
+		signal,
+	});
+
+	if (!response.ok) {
+		throw new Error(`Falha ao carregar categorias (${response.status}).`);
+	}
+
+	const payload = (await response.json()) as { categorias?: Array<{ id_categoria?: number; name?: string }> };
+	if (!payload || !Array.isArray(payload.categorias)) {
+		throw new Error("Resposta inválida da API de categorias.");
+	}
+
+	return payload.categorias
+		.filter((categoria) => typeof categoria?.id_categoria === "number" && typeof categoria?.name === "string")
+		.map((categoria) => ({
+			id_categoria: categoria.id_categoria as number,
+			name: categoria.name as string,
+		}));
+}
+
 export async function getMapRoutes(signal?: AbortSignal): Promise<MapRoute[]> {
 	const response = await fetch(ROUTES_ENDPOINT, {
 		method: "GET",
@@ -314,6 +353,7 @@ export async function getMapRoutes(signal?: AbortSignal): Promise<MapRoute[]> {
 // ─── Autenticação ────────────────────────────────────────────────────────────
 
 type LoginResponse = { authToken?: string; message?: string };
+type RegisterResponse = { message?: string };
 
 type MeResponse = {
 	isAuthorized?: boolean;
@@ -355,6 +395,41 @@ export async function loginUser(
 
 	const user = await getMe(data.authToken);
 	return { token: data.authToken, user };
+}
+
+export async function registerUser(name: string, email: string, password: string): Promise<string> {
+	let response: Response;
+	try {
+		response = await fetchWithTimeout(REGISTER_ENDPOINT, {
+			method: "POST",
+			headers: { "Content-Type": "application/json", Accept: "application/json" },
+			body: JSON.stringify({ name, email, password }),
+		});
+	} catch (error) {
+		if (error instanceof Error && error.message.includes("expirou")) {
+			throw error;
+		}
+		throw new Error("Erro no registo. Tente novamente.");
+	}
+
+	let payload: RegisterResponse | null = null;
+	try {
+		payload = (await response.json()) as RegisterResponse;
+	} catch {
+		payload = null;
+	}
+
+	if (!response.ok) {
+		const message =
+			typeof payload?.message === "string" && payload.message
+				? payload.message
+				: "Não foi possível criar a conta. Tente novamente.";
+		throw new Error(message);
+	}
+
+	return typeof payload?.message === "string" && payload.message
+		? payload.message
+		: "Conta criada com sucesso. Verifique o email para confirmar a conta.";
 }
 
 export async function getMe(token: string): Promise<AuthUser> {
@@ -438,7 +513,16 @@ export async function getUserRoles(token: string): Promise<{ id_role: number; na
 // ─── Pontos (Admin) ───────────────────────────────────────────────────────────
 
 export async function createPonto(
-	fields: { name: string; description?: string; latitude: number; longitude: number; username?: string },
+	fields: {
+		name: string;
+		description?: string;
+		latitude: number;
+		longitude: number;
+		idCategorias: number[];
+		imagePath?: string;
+		imageFile?: UploadImageFile;
+		username?: string;
+	},
 	token: string
 ): Promise<void> {
 	const form = new FormData();
@@ -446,6 +530,15 @@ export async function createPonto(
 	if (fields.description) form.append("description", fields.description);
 	form.append("latitude", String(fields.latitude));
 	form.append("longitude", String(fields.longitude));
+	form.append("id_categorias", JSON.stringify(fields.idCategorias));
+	form.append("imagePath", fields.imagePath ?? "");
+	if (fields.imageFile) {
+		form.append("image", {
+			uri: fields.imageFile.uri,
+			name: fields.imageFile.name ?? "ponto.jpg",
+			type: fields.imageFile.type ?? "image/jpeg",
+		} as unknown as Blob);
+	}
 	if (fields.username) form.append("username", fields.username);
 
 	const res = await fetch(`${BASE_URL}/ponto/create`, {

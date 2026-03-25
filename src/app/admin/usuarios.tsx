@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     Pressable,
     StyleSheet,
@@ -12,6 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
+import { useDialog } from "../../context/DialogContext";
 import { useAppTheme } from "../../context/ThemeContext";
 import {
     type ApiUser,
@@ -29,6 +29,7 @@ export default function UsuariosScreen() {
 	const { top, bottom } = useSafeAreaInsets();
 	const { token } = useAuth();
 	const { colors } = useAppTheme();
+	const { showDialog, showError, showConfirm } = useDialog();
 	const [users, setUsers] = useState<ApiUser[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -49,47 +50,43 @@ export default function UsuariosScreen() {
 	useEffect(() => { load(); }, []);
 
 	function confirmDelete(user: ApiUser) {
-		Alert.alert(
-			"Eliminar utilizador",
-			`Tens a certeza que queres eliminar "${user.name}"?`,
-			[
-				{ text: "Cancelar", style: "cancel" },
-				{
-					text: "Eliminar",
-					style: "destructive",
-					onPress: async () => {
-						try {
-							await deleteUser(user.id_user, token!);
-							await load();
-						} catch (e) {
-							Alert.alert("Erro", e instanceof Error ? e.message : "Erro ao eliminar.");
-						}
-					},
-				},
-			]
-		);
+		showConfirm({
+			title: "Eliminar utilizador",
+			message: `Tens a certeza que queres eliminar "${user.name}"?`,
+			confirmText: "Eliminar",
+			confirmVariant: "destructive",
+			onConfirm: async () => {
+				try {
+					await deleteUser(user.id_user, token!);
+					await load();
+				} catch (e) {
+					showError(e instanceof Error ? e.message : "Erro ao eliminar.");
+				}
+			},
+		});
 	}
 
 	function promptRoleChange(user: ApiUser) {
 		const otherRoles = ROLES.filter((r) => r !== user.Role.name);
-		Alert.alert(
-			"Alterar role",
-			`Role atual: ${user.Role.name}`,
-			[
+		showDialog({
+			title: "Alterar role",
+			message: `Role atual: ${user.Role.name}`,
+			buttons: [
 				...otherRoles.map((role) => ({
 					text: `Mudar para ${role}`,
+					variant: "primary",
 					onPress: async () => {
 						try {
 							await updateUserRole(user.id_user, role, token!);
 							await load();
 						} catch (e) {
-							Alert.alert("Erro", e instanceof Error ? e.message : "Erro ao atualizar.");
+							showError(e instanceof Error ? e.message : "Erro ao atualizar.");
 						}
 					},
 				})),
-				{ text: "Cancelar", style: "cancel" },
-			]
-		);
+				{ text: "Cancelar", variant: "secondary" },
+			],
+		});
 	}
 
 	async function toggleBlock(user: ApiUser) {
@@ -101,7 +98,7 @@ export default function UsuariosScreen() {
 			}
 			await load();
 		} catch (e) {
-			Alert.alert("Erro", e instanceof Error ? e.message : "Erro ao alterar estado.");
+			showError(e instanceof Error ? e.message : "Erro ao alterar estado.");
 		}
 	}
 

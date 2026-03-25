@@ -17,5 +17,5 @@ export function isAdminRole(role: string | null | undefined): boolean {
 }
 
 export function getAuthenticatedHomeRoute(role: string | null | undefined): Href {
-  return isAdminRole(role) ? "/admin" : "/(tabs)/mapa";
+  return "/admin";
 }

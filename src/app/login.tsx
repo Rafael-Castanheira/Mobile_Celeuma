@@ -6,6 +6,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     Pressable,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -83,14 +84,19 @@ export default function Login() {
         style={styles.keyboardContainer}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-      <View style={[styles.card, { backgroundColor: colors.background, borderColor: colors.border }]}> 
-        <View style={styles.header}>
-          <BrandLogo size={74} iconSize={34} withFrame />
-          <Text style={[styles.formTitle, { color: colors.foreground }]}>Entrar</Text>
-          <Text style={[styles.heroDescription, { color: colors.mutedForeground }]}>
-            {landing?.description ?? activePreset?.description ?? "Acede à tua conta para continuar."}
-          </Text>
-        </View>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.card, { backgroundColor: colors.background, borderColor: colors.border }]}> 
+            <View style={styles.header}>
+              <BrandLogo size={74} iconSize={34} withFrame />
+              <Text style={[styles.formTitle, { color: colors.foreground }]}>Entrar</Text>
+              <Text style={[styles.heroDescription, { color: colors.mutedForeground }]}> 
+                {landing?.description ?? activePreset?.description ?? "Acede à tua conta para continuar."}
+              </Text>
+            </View>
 
         <View style={styles.form}>
           <View style={styles.inputBlock}>
@@ -168,13 +174,14 @@ export default function Login() {
         </Pressable>
         </View>
 
-      <View style={styles.footer}>
-        <Text style={[styles.footerText, { color: colors.mutedForeground }]}>Ainda não está registado? </Text>
-        <Pressable>
-          <Text style={[styles.footerLink, { color: colors.primary }]}>Criar conta</Text>
-        </Pressable>
-      </View>
-      </View>
+            <View style={styles.footer}>
+              <Text style={[styles.footerText, { color: colors.mutedForeground }]}>Ainda não está registado? </Text>
+              <Pressable onPress={() => router.push("/register")}>
+                <Text style={[styles.footerLink, { color: colors.primary }]}>Criar conta</Text>
+              </Pressable>
+            </View>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </View>
   );
@@ -187,29 +194,35 @@ const styles = StyleSheet.create({
   },
   keyboardContainer: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: "center",
   },
   root: {
     flex: 1,
   },
   card: {
+    width: "100%",
+    maxWidth: 520,
+    alignSelf: "center",
     borderRadius: 18,
     borderWidth: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
   },
   header: {
     alignItems: "center",
-    marginBottom: 18,
+    marginBottom: 14,
   },
   heroDescription: {
-    fontSize: 13.5,
+    fontSize: 13,
     textAlign: "center",
-    lineHeight: 21,
-    marginTop: 8,
+    lineHeight: 20,
+    marginTop: 6,
   },
   form: {
-    gap: 12,
+    gap: 10,
   },
   formTitle: {
     fontSize: 28,
@@ -233,8 +246,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 14,
     borderWidth: 1,
-    paddingHorizontal: 14,
-    height: 52,
+    paddingHorizontal: 12,
+    height: 48,
   },
   inputIcon: {
     marginRight: 10,
@@ -255,10 +268,10 @@ const styles = StyleSheet.create({
   },
   loginBtn: {
     borderRadius: 10,
-    height: 48,
+    height: 46,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 8,
+    marginTop: 6,
     shadowOpacity: 0.24,
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 2 },
@@ -291,7 +304,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 16,
+    marginTop: 12,
   },
   footerText: {
     fontSize: 14,

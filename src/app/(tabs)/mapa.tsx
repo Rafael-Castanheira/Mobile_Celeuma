@@ -1,10 +1,13 @@
-import { getMapPoints, getMapRoutes, type MapPoint, type MapRoute } from "@/src/lib/360api";
+import { createPonto, getMapPoints, getMapRoutes, getPointCategories, type MapPoint, type MapRoute, type PointCategory, type UploadImageFile } from "@/src/lib/360api";
 import { Feather } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Modal, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
+import { useAuth } from "../../context/AuthContext";
+import { useDialog } from "../../context/DialogContext";
 import { useAppTheme } from "../../context/ThemeContext";
 
 const DEFAULT_MAP_CENTER = {
@@ -514,7 +517,13 @@ function buildMapHtml(
     `).join('')}
     function sendCenter() {
       var c = map.getCenter();
-      window.ReactNativeWebView.postMessage(JSON.stringify({ lat: c.lat.toFixed(4), lng: c.lng.toFixed(4) }));
+      window.ReactNativeWebView.postMessage(
+        JSON.stringify({
+          lat: c.lat.toFixed(4),
+          lng: c.lng.toFixed(4),
+          center: { lat: c.lat, lng: c.lng }
+        })
+      );
     }
     map.on('move', sendCenter);
     map.on('click', function() {
@@ -533,9 +542,12 @@ function buildMapHtml(
 export default function MapaScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { top } = useSafeAreaInsets();
+  const { token, user } = useAuth();
   const { colors } = useAppTheme();
+  const { showError, showInfo, showSuccess } = useDialog();
   const webViewRef = useRef<WebView>(null);
   const [coords, setCoords] = useState({ lat: "--", lng: "--" });
+  const [cursorCoords, setCursorCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [points, setPoints] = useState<MapPoint[]>([]);
   const [apiRoutes, setApiRoutes] = useState<MapRoute[]>([]);
   const [pointsError, setPointsError] = useState<string | null>(null);
@@ -558,6 +570,14 @@ export default function MapaScreen() {
   const [expandedRouteId, setExpandedRouteId] = useState<number | null>(null);
   const [longPressedIndex, setLongPressedIndex] = useState<number | null>(null);
   const [bottomTab, setBottomTab] = useState<'points' | 'routes'>('points');
+  const [isCreatePointModalOpen, setIsCreatePointModalOpen] = useState(false);
+  const [newPointName, setNewPointName] = useState("");
+  const [newPointDescription, setNewPointDescription] = useState("");
+  const [newPointCategoryIds, setNewPointCategoryIds] = useState<number[]>([]);
+  const [newPointImage, setNewPointImage] = useState<UploadImageFile | null>(null);
+  const [pointCategories, setPointCategories] = useState<PointCategory[]>([]);
+  const [isLoadingPointCategories, setIsLoadingPointCategories] = useState(false);
+  const [isCreatingPoint, setIsCreatingPoint] = useState(false);
   const hasBootstrappedRoutes = useRef(false);
   const resolvedRoutesRef = useRef<GeneratedRoute[]>([]);
   const routeListRef = useRef<GeneratedRoute[]>([]);
@@ -660,7 +680,26 @@ export default function MapaScreen() {
     return `${Math.max(1, Math.round(durationSeconds / 60))} min`;
   }
 
-  function toPortugueseDirection(step: string) {
+  const approximatePolylineDistanceMeters = useCallback((latLngs: [number, number][]) => {
+    if (latLngs.length < 2) return 0;
+    const R = 6371000;
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    let distance = 0;
+    for (let i = 1; i < latLngs.length; i += 1) {
+      const [lat1, lon1] = latLngs[i - 1];
+      const [lat2, lon2] = latLngs[i];
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      distance += R * c;
+    }
+    return distance;
+  }, []);
+
+  const toPortugueseDirection = useCallback((step: string) => {
     const normalized = step.trim();
     if (!normalized) return normalized;
 
@@ -684,11 +723,57 @@ export default function MapaScreen() {
       .replace(/\bon\b/gi, "na")
       .replace(/\bonto\b/gi, "para")
       .replace(/\btowards\b/gi, "em direção a");
-  }
+  }, []);
+
+  const renderedRouteIdsRef = useRef<Set<number>>(new Set());
+  const renderingRouteIdsRef = useRef<Set<number>>(new Set());
+
+  const ensureRouteRendered = useCallback(async (route: GeneratedRoute, signal?: AbortSignal) => {
+    if (!isMapReady) return;
+    if (renderedRouteIdsRef.current.has(route.id)) return;
+    if (renderingRouteIdsRef.current.has(route.id)) return;
+
+    renderingRouteIdsRef.current.add(route.id);
+    try {
+      const result = await fetchOSRMRoute(route.coordinates, signal);
+      if (signal?.aborted) return;
+
+      const latLngs = result?.latLngs ?? route.coordinates;
+      webViewRef.current?.injectJavaScript(
+        `window.addRoute(${route.id}, ${JSON.stringify(latLngs)}); true;`
+      );
+      renderedRouteIdsRef.current.add(route.id);
+
+      setRouteMetricsById((prev) => {
+        if (prev[route.id]) return prev;
+        if (result) {
+          return {
+            ...prev,
+            [route.id]: {
+              distanceMeters: result.distanceMeters,
+              durationSeconds: result.durationSeconds,
+              steps: result.steps.map(toPortugueseDirection),
+            },
+          };
+        }
+
+        const fallbackDistance = approximatePolylineDistanceMeters(latLngs);
+        return {
+          ...prev,
+          [route.id]: {
+            distanceMeters: fallbackDistance,
+            durationSeconds: Math.round(fallbackDistance / 1.3),
+            steps: [],
+          },
+        };
+      });
+    } finally {
+      renderingRouteIdsRef.current.delete(route.id);
+    }
+  }, [approximatePolylineDistanceMeters, isMapReady, toPortugueseDirection]);
 
   function openRouteDetails(route: GeneratedRoute) {
     setSelectedRouteId(route.id);
-    webViewRef.current?.injectJavaScript(`window.selectRoute(${route.id}); true;`);
     setExpandedRouteId(route.id);
     setIsRoutesScreenOpen(true);
   }
@@ -697,48 +782,30 @@ export default function MapaScreen() {
     const fromPoint = points[fromIdx];
     const toPoint = points[toIdx];
 
-    // Check if an API route already connects these two points
-    const existingApiRoute = apiRoutes.find(
-      (r) => r.pointIds.includes(fromPoint.id) && r.pointIds.includes(toPoint.id)
-    );
-    if (existingApiRoute) {
-      const resolved = resolvedRoutesRef.current.find((r) => r.id === existingApiRoute.id);
-      if (resolved) {
-        setRouteList((prev) => (prev.some((r) => r.id === resolved.id) ? prev : [...prev, resolved]));
-        openRouteDetails(resolved);
-        return;
-      }
+    // Only select an existing API route that directly connects the two points.
+    // A route "connects" the points when they are adjacent in the route's pointIds.
+    const existingApiRoute = apiRoutes.find((r) => {
+      const a = r.pointIds.indexOf(fromPoint.id);
+      const b = r.pointIds.indexOf(toPoint.id);
+      return a !== -1 && b !== -1 && Math.abs(a - b) === 1;
+    });
+
+    if (!existingApiRoute) {
+      showInfo(
+        "Não existe trajeto entre estes pontos. Seleciona um trajeto existente na lista de trajetos.",
+        "Sem trajeto"
+      );
+      return;
     }
 
-    // Create a synthetic route between the two points via OSRM (fetched from RN, no WebView CORS issues)
-    const syntheticId = -(Math.abs(fromPoint.id) * 100000 + Math.abs(toPoint.id));
-    const coords: [number, number][] = [
-      [fromPoint.latitude, fromPoint.longitude],
-      [toPoint.latitude, toPoint.longitude],
-    ];
-    const syntheticRoute: GeneratedRoute = {
-      id: syntheticId,
-      name: `${fromPoint.title} → ${toPoint.title}`,
-      coordinates: coords,
-    };
-    setRouteList((prev) => (prev.some((r) => r.id === syntheticId) ? prev : [...prev, syntheticRoute]));
-    openRouteDetails(syntheticRoute);
-
-    const result = await fetchOSRMRoute(coords);
-    const latLngs = result?.latLngs ?? coords;
-    webViewRef.current?.injectJavaScript(
-      `window.addRoute(${syntheticId}, ${JSON.stringify(latLngs)}); true;`
-    );
-    if (result) {
-      setRouteMetricsById((prev) => ({
-        ...prev,
-        [syntheticId]: {
-          distanceMeters: result.distanceMeters,
-          durationSeconds: result.durationSeconds,
-          steps: result.steps.map(toPortugueseDirection),
-        },
-      }));
+    const resolved = resolvedRoutesRef.current.find((r) => r.id === existingApiRoute.id);
+    if (!resolved) {
+      showError("O trajeto existe mas não foi possível carregá-lo no mapa.", "Sem trajeto");
+      return;
     }
+
+    setRouteList((prev) => (prev.some((r) => r.id === resolved.id) ? prev : [...prev, resolved]));
+    openRouteDetails(resolved);
   }
 
   function handlePointPress(index: number) {
@@ -750,7 +817,7 @@ export default function MapaScreen() {
     } else if (selectedIndex === index) {
       setSelectedIndex(null);
     } else {
-      createRouteBetweenPoints(selectedIndex, index);
+      void createRouteBetweenPoints(selectedIndex, index);
       setSelectedIndex(null);
     }
   }
@@ -767,6 +834,129 @@ export default function MapaScreen() {
     webViewRef.current?.injectJavaScript(`window.setBaseLayer('${mode}'); true;`);
   }
 
+  function openCreatePointModal() {
+    if (!cursorCoords) {
+      showInfo("Move o mapa para posicionar a mira e tenta novamente.", "Sem coordenadas");
+      return;
+    }
+
+    setNewPointName("");
+    setNewPointDescription("");
+    setNewPointCategoryIds([]);
+    setNewPointImage(null);
+    setIsCreatePointModalOpen(true);
+  }
+
+  async function pickImageForNewPoint() {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      showInfo("Ativa acesso às fotos para selecionar uma imagem.", "Permissão necessária");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: false,
+      quality: 0.9,
+    });
+
+    if (result.canceled || !result.assets[0]) return;
+
+    const asset = result.assets[0];
+    const fileName = asset.fileName || asset.uri.split("/").pop() || `ponto-${Date.now()}.jpg`;
+    setNewPointImage({
+      uri: asset.uri,
+      name: fileName,
+      type: asset.mimeType || "image/jpeg",
+    });
+  }
+
+  useEffect(() => {
+    if (!isCreatePointModalOpen) return;
+    let cancelled = false;
+
+    async function loadCategories() {
+      setIsLoadingPointCategories(true);
+      try {
+        const categorias = await getPointCategories();
+        if (!cancelled) {
+          setPointCategories(categorias);
+        }
+      } catch {
+        if (!cancelled) {
+          setPointCategories([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingPointCategories(false);
+        }
+      }
+    }
+
+    loadCategories();
+    return () => {
+      cancelled = true;
+    };
+  }, [isCreatePointModalOpen]);
+
+  async function handleCreatePointAtCursor() {
+    if (!cursorCoords) {
+      showError("Não foi possível obter a posição atual da mira.", "Sem coordenadas");
+      return;
+    }
+
+    if (!token) {
+      showInfo("Precisas de iniciar sessão para criar pontos.", "Sessão necessária");
+      return;
+    }
+
+    if (!newPointName.trim()) {
+      showError("Define um nome para o ponto.", "Nome obrigatório");
+      return;
+    }
+
+    if (!newPointDescription.trim()) {
+      showError("Define uma descrição para o ponto.", "Descrição obrigatória");
+      return;
+    }
+
+    if (newPointCategoryIds.length === 0) {
+      showError("Seleciona pelo menos uma categoria.", "Categoria obrigatória");
+      return;
+    }
+
+    if (!newPointImage) {
+      showError("Seleciona uma imagem para o ponto.", "Imagem obrigatória");
+      return;
+    }
+
+    setIsCreatingPoint(true);
+    try {
+      await createPonto(
+        {
+          name: newPointName.trim(),
+          description: newPointDescription.trim(),
+          latitude: cursorCoords.lat,
+          longitude: cursorCoords.lng,
+          idCategorias: newPointCategoryIds,
+          imagePath: "",
+          imageFile: newPointImage,
+          username: user?.name,
+        },
+        token
+      );
+
+      const freshPoints = await getMapPoints();
+      setPoints(freshPoints);
+      setIsCreatePointModalOpen(false);
+      showSuccess("O novo ponto foi criado na posição da mira.", "Ponto criado");
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Não foi possível criar o ponto.");
+    } finally {
+      setIsCreatingPoint(false);
+    }
+  }
+
   useEffect(() => {
     setIsMapReady(false);
     hasBootstrappedRoutes.current = false;
@@ -776,6 +966,8 @@ export default function MapaScreen() {
     setIsRoutesScreenOpen(false);
     setExpandedRouteId(null);
     setSelectedRouteId(null);
+    renderedRouteIdsRef.current = new Set();
+    renderingRouteIdsRef.current = new Set();
   }, [resolvedRoutes]);
 
   useEffect(() => {
@@ -786,24 +978,19 @@ export default function MapaScreen() {
       (async () => {
         const result = await fetchOSRMRoute(route.coordinates, controller.signal);
         if (controller.signal.aborted) return;
-        const latLngs = result?.latLngs ?? route.coordinates;
-        webViewRef.current?.injectJavaScript(
-          `window.addRoute(${route.id}, ${JSON.stringify(latLngs)}); true;`
-        );
-        if (result) {
-          setRouteMetricsById((prev) => ({
-            ...prev,
-            [route.id]: {
-              distanceMeters: result.distanceMeters,
-              durationSeconds: result.durationSeconds,
-              steps: result.steps.map(toPortugueseDirection),
-            },
-          }));
-        }
+        if (!result) return;
+        setRouteMetricsById((prev) => ({
+          ...prev,
+          [route.id]: {
+            distanceMeters: result.distanceMeters,
+            durationSeconds: result.durationSeconds,
+            steps: result.steps.map(toPortugueseDirection),
+          },
+        }));
       })();
     }
     return () => { controller.abort(); };
-  }, [isMapReady]);
+  }, [isMapReady, toPortugueseDirection]);
 
   useEffect(() => {
     if (!isMapReady) return;
@@ -813,8 +1000,14 @@ export default function MapaScreen() {
       return;
     }
 
+    const route =
+      resolvedRoutesRef.current.find((r) => r.id === selectedRouteId) ??
+      routeListRef.current.find((r) => r.id === selectedRouteId);
+
+    if (route) void ensureRouteRendered(route);
+
     webViewRef.current?.injectJavaScript(`window.selectRoute(${selectedRouteId}); true;`);
-  }, [isMapReady, routeDrawnCount, selectedRouteId]);
+  }, [ensureRouteRendered, isMapReady, routeDrawnCount, selectedRouteId]);
 
   const mapHtml = useMemo(
     () => buildMapHtml(points, [], {
@@ -865,20 +1058,27 @@ export default function MapaScreen() {
                 handlePointPress(data.markerIndex);
               } else if (data.routeInfo !== undefined) {
                 const routeInfo = data.routeInfo;
-                setRouteMetricsById((prev) => ({
-                  ...prev,
-                  [routeInfo.id]: {
-                    distanceMeters: Number(routeInfo.distanceMeters) || 0,
-                    durationSeconds: Number(routeInfo.durationSeconds) || 0,
-                    // Preserve existing steps when the WebView reports empty steps
-                    // (window.addRoute always sends steps:[] — RN-side OSRM sets real steps)
-                    steps: Array.isArray(routeInfo.steps) && routeInfo.steps.length > 0
+                setRouteMetricsById((prev) => {
+                  const existing = prev[routeInfo.id];
+                  // If we already have "real" OSRM steps, keep those metrics.
+                  if (existing && existing.steps.length > 0) return prev;
+
+                  const incomingSteps =
+                    Array.isArray(routeInfo.steps) && routeInfo.steps.length > 0
                       ? routeInfo.steps
                           .filter((step: unknown) => typeof step === "string")
                           .map((step: string) => toPortugueseDirection(step))
-                      : (prev[routeInfo.id]?.steps ?? []),
-                  },
-                }));
+                      : [];
+
+                  return {
+                    ...prev,
+                    [routeInfo.id]: {
+                      distanceMeters: Number(routeInfo.distanceMeters) || existing?.distanceMeters || 0,
+                      durationSeconds: Number(routeInfo.durationSeconds) || existing?.durationSeconds || 0,
+                      steps: incomingSteps.length > 0 ? incomingSteps : (existing?.steps ?? []),
+                    },
+                  };
+                });
               } else if (data.routeDeselected) {
                 setSelectedRouteId(null);
               } else if (data.routeSelected !== undefined) {
@@ -894,6 +1094,13 @@ export default function MapaScreen() {
                 setRouteDrawnCount((prev) => prev + 1);
               } else {
                 setCoords({ lat: data.lat, lng: data.lng });
+                if (
+                  data.center &&
+                  typeof data.center.lat === "number" &&
+                  typeof data.center.lng === "number"
+                ) {
+                  setCursorCoords({ lat: data.center.lat, lng: data.center.lng });
+                }
               }
             } catch {}
           }}
@@ -911,6 +1118,14 @@ export default function MapaScreen() {
         <View style={[styles.crosshairDot, { borderColor: colors.primary }]} pointerEvents="none" />
 
         <View style={[styles.fabRow, { top: top + 8 }]}>
+          <TouchableOpacity
+            style={[styles.fabButton, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]}
+            onPress={openCreatePointModal}
+            activeOpacity={0.8}
+          >
+            <Feather name="plus" size={18} color={colors.primaryForeground} />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.fabButton, { backgroundColor: colors.overlay, borderColor: colors.border }, isLayersMenuOpen && [styles.fabButtonActive, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]]}
             onPress={() => {
@@ -1071,7 +1286,7 @@ export default function MapaScreen() {
                       style={[styles.listItem, { backgroundColor: colors.card }, isSelected && [styles.listItemSelected, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]]}
                       onPress={() => {
                         setSelectedRouteId(route.id);
-                        webViewRef.current?.injectJavaScript(`window.selectRoute(${route.id}); true;`);
+                        void ensureRouteRendered(route);
                         setRouteList((prev) =>
                           prev.some((r) => r.id === route.id) ? prev : [...prev, route]
                         );
@@ -1126,7 +1341,7 @@ export default function MapaScreen() {
               <View style={styles.routesScreenEmpty}>
                 <Feather name="map" size={40} color={colors.iconMuted} />
                 <Text style={[styles.routesScreenEmptyText, { color: colors.mutedForeground }]}> 
-                  Clica numa rota no mapa para a selecionar.
+                  Seleciona um trajeto na lista para o mostrar no mapa.
                 </Text>
               </View>
             ) : (
@@ -1147,7 +1362,7 @@ export default function MapaScreen() {
                           setExpandedRouteId(next);
                           if (next !== null) {
                             setSelectedRouteId(route.id);
-                            webViewRef.current?.injectJavaScript(`window.selectRoute(${route.id}); true;`);
+                            void ensureRouteRendered(route);
                           }
                         }}
                         activeOpacity={0.75}
@@ -1172,6 +1387,8 @@ export default function MapaScreen() {
                             if (expandedRouteId === route.id) setExpandedRouteId(null);
                             if (selectedRouteId === route.id) setSelectedRouteId(null);
                             webViewRef.current?.injectJavaScript(`window.removeRoute(${route.id}); true;`);
+                            renderedRouteIdsRef.current.delete(route.id);
+                            renderingRouteIdsRef.current.delete(route.id);
                           }}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                           activeOpacity={0.7}
@@ -1226,6 +1443,117 @@ export default function MapaScreen() {
             </View>
           </TouchableOpacity>
         )}
+
+        <Modal
+          visible={isCreatePointModalOpen}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setIsCreatePointModalOpen(false)}
+        >
+          <View style={[styles.modalOverlay, { backgroundColor: colors.overlay }]}>
+            <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Text style={[styles.modalTitle, { color: colors.foreground }]}>Criar ponto na mira</Text>
+              <Text style={[styles.modalHint, { color: colors.mutedForeground }]}>
+                Coordenadas: {coords.lat}, {coords.lng}
+              </Text>
+
+              <Text style={[styles.modalLabel, { color: colors.mutedForeground }]}>Nome *</Text>
+              <TextInput
+                style={[styles.modalInput, { backgroundColor: colors.secondary, color: colors.foreground, borderColor: colors.border }]}
+                value={newPointName}
+                onChangeText={setNewPointName}
+                placeholder="Nome do ponto"
+                placeholderTextColor={colors.placeholder}
+              />
+
+              <Text style={[styles.modalLabel, { color: colors.mutedForeground }]}>Descricao</Text>
+              <TextInput
+                style={[styles.modalInput, styles.modalTextArea, { backgroundColor: colors.secondary, color: colors.foreground, borderColor: colors.border }]}
+                value={newPointDescription}
+                onChangeText={setNewPointDescription}
+                placeholder="Descricao (opcional)"
+                placeholderTextColor={colors.placeholder}
+                multiline
+              />
+
+              <Text style={[styles.modalLabel, { color: colors.mutedForeground }]}>Categorias *</Text>
+              {isLoadingPointCategories ? (
+                <ActivityIndicator color={colors.primary} size="small" style={{ marginVertical: 8 }} />
+              ) : pointCategories.length === 0 ? (
+                <Text style={[styles.modalHint, { color: colors.destructive }]}>Nao foi possivel carregar categorias.</Text>
+              ) : (
+                <View style={styles.categoryChips}>
+                  {pointCategories.map((categoria) => {
+                    const isSelected = newPointCategoryIds.includes(categoria.id_categoria);
+                    return (
+                      <TouchableOpacity
+                        key={categoria.id_categoria}
+                        style={[
+                          styles.categoryChip,
+                          {
+                            backgroundColor: isSelected ? colors.primary : colors.secondary,
+                            borderColor: isSelected ? colors.primaryForeground : colors.border,
+                          },
+                        ]}
+                        onPress={() => {
+                          setNewPointCategoryIds((prev) =>
+                            prev.includes(categoria.id_categoria)
+                              ? prev.filter((id) => id !== categoria.id_categoria)
+                              : [...prev, categoria.id_categoria]
+                          );
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={[styles.categoryChipText, { color: isSelected ? colors.primaryForeground : colors.foreground }]}>
+                          {categoria.name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
+
+              <Text style={[styles.modalLabel, { color: colors.mutedForeground }]}>Imagem *</Text>
+              <TouchableOpacity
+                style={[styles.imagePickBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                onPress={pickImageForNewPoint}
+                activeOpacity={0.8}
+                disabled={isCreatingPoint}
+              >
+                <Feather name="image" size={16} color={colors.primary} />
+                <Text style={[styles.imagePickBtnText, { color: colors.foreground }]}>
+                  {newPointImage ? "Alterar imagem" : "Selecionar imagem"}
+                </Text>
+              </TouchableOpacity>
+              {newPointImage && (
+                <Text style={[styles.modalHint, { color: colors.mutedForeground }]}>Selecionada: {newPointImage.name}</Text>
+              )}
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: colors.muted }]}
+                  onPress={() => setIsCreatePointModalOpen(false)}
+                  activeOpacity={0.8}
+                  disabled={isCreatingPoint}
+                >
+                  <Text style={[styles.modalBtnText, { color: colors.secondaryForeground }]}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: colors.primary }]}
+                  onPress={handleCreatePointAtCursor}
+                  activeOpacity={0.8}
+                  disabled={isCreatingPoint}
+                >
+                  {isCreatingPoint ? (
+                    <ActivityIndicator color={colors.primaryForeground} size="small" />
+                  ) : (
+                    <Text style={[styles.modalBtnText, { color: colors.primaryForeground }]}>Criar</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     </View>
   );
@@ -1262,9 +1590,11 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: "50%",
     left: "50%",
-    marginTop: 25,           // Posicionado logo abaixo da mira
+    marginTop: 25,
     marginLeft: 12,
     backgroundColor: "rgba(0,0,0,0.7)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.2)",
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -1625,6 +1955,87 @@ const styles = StyleSheet.create({
   tabBadgeText: {
     color: "#f8fafc",
     fontSize: 10,
+    fontWeight: "700",
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  modalCard: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    borderWidth: 1,
+    borderBottomWidth: 0,
+    padding: 18,
+    gap: 8,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  modalHint: {
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  modalLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 6,
+  },
+  modalInput: {
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+  },
+  modalTextArea: {
+    height: 84,
+    textAlignVertical: "top",
+  },
+  categoryChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 2,
+  },
+  categoryChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  categoryChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  imagePickBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  imagePickBtnText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+  },
+  modalBtn: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalBtnText: {
+    fontSize: 14,
     fontWeight: "700",
   },
 });
