@@ -75,7 +75,11 @@ export async function setActiveThemePreset(presetId, token) {
 		headers: authHeaders(token),
 		body: JSON.stringify({ presetId }),
 	});
-	if (!res.ok) throw new Error(`Erro ao definir tema ativo (${res.status}).`);
+	if (!res.ok) {
+		if (res.status === 401) throw new Error("Sessão inválida. Inicia sessão novamente.");
+		if (res.status === 403) throw new Error("Sem permissão para definir o tema ativo.");
+		throw new Error(`Erro ao definir tema ativo (${res.status}).`);
+	}
 }
 
 export async function getLandingContent(signal) {

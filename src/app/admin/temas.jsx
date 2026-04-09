@@ -18,6 +18,7 @@ import {
     getThemePresets,
     setActiveThemePreset,
 } from "../../lib/360api";
+import { isAdminRole } from "../../lib/auth";
 import { isThemeColorValue, normalizeThemeColor } from "../../lib/theme";
 
 const PREFERRED_THEME_KEYS = [
@@ -31,6 +32,11 @@ const PREFERRED_THEME_KEYS = [
 	"muted",
 	"border",
 ];
+
+const MODE_LABELS = {
+	light: "Claro",
+	dark: "Escuro",
+};
 
 function isColorLike(value) {
 	return isThemeColorValue(value);
@@ -75,9 +81,10 @@ function ThemePreviewRow({ label, colors }) {
 export default function TemasScreen() {
 	const router = useRouter();
 	const { top, bottom } = useSafeAreaInsets();
-	const { token } = useAuth();
-	const { colors, activePreset, refreshActiveTheme } = useAppTheme();
-	const { showError } = useDialog();
+	const { token, user } = useAuth();
+	const { colors, mode, activePreset, refreshActiveTheme, setThemeModePreference } = useAppTheme();
+	const { showError, showInfo } = useDialog();
+	const canManageTheme = isAdminRole(user?.role);
 	const [themes, setThemes] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
@@ -108,6 +115,11 @@ export default function TemasScreen() {
 	}, []);
 
 	async function handleActivate(theme) {
+		if (!canManageTheme) {
+			showInfo("Apenas administradores podem definir o tema ativo.", "Sem permissão");
+			return;
+		}
+
 		if (!token) {
 			showError("Sessão inválida. Inicia sessão novamente.");
 			return;
@@ -125,6 +137,11 @@ export default function TemasScreen() {
 	}
 
 	async function handleReset() {
+		if (!canManageTheme) {
+			showInfo("Apenas administradores podem definir o tema ativo.", "Sem permissão");
+			return;
+		}
+
 		if (!token) {
 			showError("Sessão inválida. Inicia sessão novamente.");
 			return;
@@ -163,6 +180,50 @@ export default function TemasScreen() {
 						<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
 					}
 				>
+					{!canManageTheme ? (
+						<>
+							<View style={[styles.modeCard, { borderColor: colors.border, backgroundColor: colors.card }]}> 
+								<View style={styles.modeHeaderRow}>
+									<Feather name="monitor" size={16} color={colors.primary} />
+									<Text style={[styles.modeTitle, { color: colors.foreground }]}>Modo de aparencia</Text>
+								</View>
+								<Text style={[styles.modeDescription, { color: colors.mutedForeground }]}> 
+									No teu perfil, podes alternar entre modo claro e escuro.
+								</Text>
+								<View style={styles.modeButtonsRow}>
+									{["light", "dark"].map((option) => {
+										const isSelected = mode === option;
+
+										return (
+											<Pressable
+												key={option}
+												style={[
+													styles.modeButton,
+													{ borderColor: colors.border, backgroundColor: colors.background },
+													isSelected && [styles.modeButtonActive, { borderColor: colors.primary, backgroundColor: colors.accentSoft }],
+												]}
+												onPress={() => void setThemeModePreference(option)}
+											>
+												<Feather
+													name={option === "light" ? "sun" : "moon"}
+													size={14}
+													color={isSelected ? colors.primary : colors.iconMuted}
+												/>
+												<Text style={[styles.modeButtonText, { color: isSelected ? colors.primary : colors.foreground }]}>
+													{MODE_LABELS[option]}
+												</Text>
+											</Pressable>
+										);
+									})}
+								</View>
+							</View>
+
+							<Text style={[styles.permissionHint, { color: colors.mutedForeground, borderColor: colors.border, backgroundColor: colors.card }]}> 
+								Apenas administradores podem alterar o tema ativo global. O teu perfil tem acesso de consulta.
+							</Text>
+						</>
+					) : null}
+
 					<View style={[styles.currentCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
 						<View style={[styles.currentIconWrap, { backgroundColor: colors.accentSoft }]}>
 							<Feather name="droplet" size={18} color={colors.primary} />
@@ -180,15 +241,15 @@ export default function TemasScreen() {
 							style={[
 								styles.resetBtn,
 								{ backgroundColor: colors.accentSoft },
-								submittingId === "default" && styles.resetBtnDisabled,
+								(submittingId === "default" || !canManageTheme) && styles.resetBtnDisabled,
 							]}
 							onPress={handleReset}
-							disabled={submittingId !== null}
+							disabled={submittingId !== null || !canManageTheme}
 						>
 							{submittingId === "default" ? (
 								<ActivityIndicator size="small" color={colors.primaryForeground} />
 							) : (
-								<Text style={[styles.resetBtnText, { color: colors.primary }]}>Usar padrão</Text>
+								<Text style={[styles.resetBtnText, { color: colors.primary }]}>{canManageTheme ? "Usar padrão" : "Apenas admin"}</Text>
 							)}
 						</Pressable>
 					</View>
@@ -236,16 +297,16 @@ export default function TemasScreen() {
 										<Pressable
 											style={[
 												styles.activateBtn,
-												{ backgroundColor: isActive ? colors.muted : colors.primary },
+												{ backgroundColor: isActive || !canManageTheme ? colors.muted : colors.primary },
 												isSubmitting && styles.activateBtnDisabled,
 											]}
 											onPress={() => handleActivate(theme)}
-											disabled={isActive || submittingId !== null}
+											disabled={isActive || submittingId !== null || !canManageTheme}
 										>
 											{isSubmitting ? (
 												<ActivityIndicator size="small" color={isActive ? colors.mutedForeground : colors.primaryForeground} />
 											) : (
-												<Text style={[styles.activateBtnText, { color: isActive ? colors.mutedForeground : colors.primaryForeground }]}>{isActive ? "Tema ativo" : "Ativar tema"}</Text>
+												<Text style={[styles.activateBtnText, { color: isActive || !canManageTheme ? colors.mutedForeground : colors.primaryForeground }]}>{isActive ? "Tema ativo" : canManageTheme ? "Ativar tema" : "Apenas admin"}</Text>
 											)}
 										</Pressable>
 									</View>
@@ -311,6 +372,57 @@ const styles = StyleSheet.create({
 		fontSize: 11,
 		letterSpacing: 2,
 		marginBottom: 12,
+	},
+	modeCard: {
+		borderWidth: 1,
+		borderRadius: 14,
+		padding: 12,
+		marginBottom: 12,
+	},
+	modeHeaderRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 8,
+		marginBottom: 6,
+	},
+	modeTitle: {
+		fontSize: 14,
+		fontWeight: "700",
+	},
+	modeDescription: {
+		fontSize: 12,
+		lineHeight: 18,
+		marginBottom: 10,
+	},
+	modeButtonsRow: {
+		flexDirection: "row",
+		gap: 10,
+	},
+	modeButton: {
+		flex: 1,
+		borderWidth: 1,
+		borderRadius: 10,
+		paddingVertical: 10,
+		alignItems: "center",
+		justifyContent: "center",
+		flexDirection: "row",
+		gap: 6,
+	},
+	modeButtonActive: {
+		borderWidth: 1,
+	},
+	modeButtonText: {
+		fontSize: 12,
+		fontWeight: "700",
+	},
+	permissionHint: {
+		borderWidth: 1,
+		borderRadius: 12,
+		paddingHorizontal: 12,
+		paddingVertical: 10,
+		fontSize: 12,
+		lineHeight: 18,
+		marginBottom: 14,
 	},
 	emptyText: { textAlign: "center", marginTop: 24 },
 	themeCard: {

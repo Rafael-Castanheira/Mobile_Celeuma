@@ -4,6 +4,13 @@ import { useAuth } from "../../context/AuthContext";
 import { useAppTheme } from "../../context/ThemeContext";
 import { isAdminRole } from "../../lib/auth";
 
+const NON_ADMIN_ALLOWED_PATHS = new Set([
+	"/admin",
+	"/admin/temas",
+	"/admin/favoritos",
+	"/admin/rota-destaque",
+]);
+
 export default function AdminLayout() {
 	const { colors, mode, activePreset } = useAppTheme();
 	const { user, isLoadingAuth } = useAuth();
@@ -22,7 +29,7 @@ export default function AdminLayout() {
 		return <Redirect href="/login" />;
 	}
 
-	if (!isAdminRole(user.role) && pathname !== "/admin") {
+	if (!isAdminRole(user.role) && !NON_ADMIN_ALLOWED_PATHS.has(pathname)) {
 		return <Redirect href="/admin" />;
 	}
 

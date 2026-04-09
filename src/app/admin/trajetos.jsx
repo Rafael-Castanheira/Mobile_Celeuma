@@ -24,16 +24,18 @@ import {
     updateTrajetoDescription,
 } from "../../lib/360api";
 import { isAdminRole } from "../../lib/auth";
+import { getFeaturedRouteId as getStoredFeaturedRouteId, setFeaturedRouteId as setStoredFeaturedRouteId } from "../../lib/preferences";
 
 export default function TrajetosScreen() {
 	const router = useRouter();
 	const { top, bottom } = useSafeAreaInsets();
 	const { token, user } = useAuth();
 	const { colors, refreshActiveTheme } = useAppTheme();
-	const { showError, showInfo, showConfirm } = useDialog();
+	const { showError, showInfo, showSuccess, showConfirm } = useDialog();
 	const canCreateTrajeto = isAdminRole(user?.role);
 	const [routes, setRoutes] = useState([]);
 	const [points, setPoints] = useState([]);
+	const [featuredRouteId, setFeaturedRouteId] = useState(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState(null);
 
@@ -52,9 +54,14 @@ export default function TrajetosScreen() {
 		setLoading(true);
 		setError(null);
 		try {
-			const [r, p] = await Promise.all([getMapRoutes(), getMapPoints()]);
+			const [r, p, storedFeaturedRouteId] = await Promise.all([
+				getMapRoutes(),
+				getMapPoints(),
+				getStoredFeaturedRouteId(),
+			]);
 			setRoutes(r);
 			setPoints(p);
+			setFeaturedRouteId(r.some((route) => route.id === storedFeaturedRouteId) ? storedFeaturedRouteId : null);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : "Erro desconhecido.");
 		} finally {
@@ -104,6 +111,11 @@ export default function TrajetosScreen() {
 	}
 
 	function openEdit(route) {
+		if (!canCreateTrajeto) {
+			showInfo("Apenas administradores podem editar trajetos.", "Sem permissão");
+			return;
+		}
+
 		setEditRoute(route);
 		setEditDesc(route.name);
 		setEditSaving(false);
@@ -128,6 +140,11 @@ export default function TrajetosScreen() {
 	}
 
 	function confirmDelete(route) {
+		if (!canCreateTrajeto) {
+			showInfo("Apenas administradores podem eliminar trajetos.", "Sem permissão");
+			return;
+		}
+
 		showConfirm({
 			title: "Eliminar rota",
 			message: `Tens a certeza que queres eliminar "${route.name}" e todos os seus trajetos?`,
@@ -148,21 +165,59 @@ export default function TrajetosScreen() {
 		});
 	}
 
+	async function handleSetFeatured(route) {
+		if (!canCreateTrajeto) {
+			showInfo("Apenas administradores podem definir a rota em destaque.", "Sem permissão");
+			return;
+		}
+
+		try {
+			await setStoredFeaturedRouteId(route.id);
+			setFeaturedRouteId(route.id);
+			showSuccess(`A rota \"${route.name}\" foi definida em destaque.`);
+		} catch {
+			showError("Não foi possível definir a rota em destaque.");
+		}
+	}
+
 	function renderRoute({ item }) {
+		const isFeatured = featuredRouteId === item.id;
+
 		return (
 			<View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.accentSoft }]}>
 				<View style={[styles.cardAccent, { backgroundColor: colors.primary }]} />
 				<View style={{ flex: 1 }}>
-					<Text style={[styles.cardTitle, { color: colors.primary }]}>{item.name}</Text>
+					<View style={styles.routeTitleRow}>
+						<Text style={[styles.cardTitle, { color: colors.primary }]}>{item.name}</Text>
+						{isFeatured ? (
+							<View style={[styles.featuredPill, { backgroundColor: colors.accentSoft }]}>
+								<Feather name="star" size={11} color={colors.primary} />
+								<Text style={[styles.featuredPillText, { color: colors.primary }]}>Em destaque</Text>
+							</View>
+						) : null}
+					</View>
 					<Text style={[styles.cardSub, { color: colors.mutedForeground }]}>{item.pointIds.length} pontos</Text>
 				</View>
 				<View style={styles.actions}>
-					<Pressable style={[styles.actionBtn, { backgroundColor: colors.accentSoft }]} onPress={() => openEdit(item)}>
-						<Feather name="edit-2" size={16} color={colors.primary} />
-					</Pressable>
-					<Pressable style={[styles.actionBtn, { backgroundColor: colors.accentSoft }]} onPress={() => confirmDelete(item)}>
-						<Feather name="trash-2" size={16} color={colors.primary} />
-					</Pressable>
+					{canCreateTrajeto ? (
+						<>
+							<Pressable
+								style={[
+									styles.actionBtn,
+									{ backgroundColor: isFeatured ? colors.primary : colors.accentSoft },
+								]}
+								onPress={() => void handleSetFeatured(item)}
+							>
+								<Feather name="star" size={16} color={isFeatured ? colors.primaryForeground : colors.primary} />
+							</Pressable>
+							<Pressable style={[styles.actionBtn, { backgroundColor: colors.accentSoft }]} onPress={() => openEdit(item)}>
+								<Feather name="edit-2" size={16} color={colors.primary} />
+							</Pressable>
+							<Pressable style={[styles.actionBtn, { backgroundColor: colors.accentSoft }]} onPress={() => confirmDelete(item)}>
+								<Feather name="trash-2" size={16} color={colors.primary} />
+							</Pressable>
+						</>
+					) : null}
 				</View>
 			</View>
 		);
@@ -308,9 +363,26 @@ const styles = StyleSheet.create({
 		marginRight: 12,
 	},
 	cardTitle: { fontWeight: "600", fontSize: 14 },
+	routeTitleRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 8,
+	},
 	cardSub: { fontSize: 12, marginTop: 2 },
 	actions: { flexDirection: "row", gap: 4 },
 	actionBtn: { padding: 8, borderRadius: 10 },
+	featuredPill: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 4,
+		paddingHorizontal: 8,
+		paddingVertical: 4,
+		borderRadius: 999,
+	},
+	featuredPillText: {
+		fontSize: 10,
+		fontWeight: "700",
+	},
 	modalOverlay: { flex: 1, justifyContent: "flex-end" },
 	modalBox: {
 		borderTopLeftRadius: 20,

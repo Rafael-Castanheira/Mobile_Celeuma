@@ -10,6 +10,8 @@ function toMapPoint(ponto) {
 		detail: ponto.description ?? "Sem descrição",
 		latitude: ponto.latitude,
 		longitude: ponto.longitude,
+		environment: ponto.environment ?? ponto.imageUrl ?? ponto.image ?? null,
+		imageUrl: ponto.imageUrl ?? null,
 		...(ponto.image ? { image: ponto.image } : {}),
 	};
 }

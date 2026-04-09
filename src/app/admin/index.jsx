@@ -1,13 +1,17 @@
 import { Feather } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrandLogo from "../../components/BrandLogo";
 import { useAuth } from "../../context/AuthContext";
 import { useAppTheme } from "../../context/ThemeContext";
+import { getMapRoutes } from "../../lib/360api";
 import { isAdminRole } from "../../lib/auth";
+import { getFeaturedRouteId } from "../../lib/preferences";
 
-const QUICK_ACTIONS = [
+const ADMIN_QUICK_ACTIONS = [
 	{
 		icon: "map",
 		label: "Mapa",
@@ -40,15 +44,82 @@ const QUICK_ACTIONS = [
 	},
 ];
 
+const USER_QUICK_ACTIONS = [
+	{
+		icon: "map",
+		label: "Mapa",
+		description: "Abrir mapa e explorar galerias",
+		route: "/(tabs)/mapa",
+	},
+	{
+		icon: "star",
+		label: "Favoritos",
+		description: "Guardar e gerir pontos favoritos",
+		route: "/admin/favoritos",
+	},
+	{
+		icon: "navigation",
+		label: "Rota em destaque",
+		description: "Ver a rota selecionada pelo admin",
+		route: "/admin/rota-destaque",
+	},
+];
+
 export default function AdminDashboard() {
 	const router = useRouter();
 	const { top, bottom } = useSafeAreaInsets();
 	const { user, clearAuth } = useAuth();
-	const { colors, activePreset } = useAppTheme();
+	const { colors, mode, activePreset, setThemeModePreference } = useAppTheme();
 	const canManageContent = isAdminRole(user?.role);
-	const quickActions = canManageContent
-		? QUICK_ACTIONS
-		: QUICK_ACTIONS.filter((action) => !["Pontos", "Trajetos", "Estatísticas"].includes(action.label));
+	const [featuredRouteName, setFeaturedRouteName] = useState(null);
+
+	useFocusEffect(
+		useCallback(() => {
+			let alive = true;
+
+			async function loadFeaturedRouteName() {
+				if (canManageContent) return;
+
+				try {
+					const [featuredRouteId, routes] = await Promise.all([
+						getFeaturedRouteId(),
+						getMapRoutes(),
+					]);
+
+					if (!alive) return;
+
+					const featuredRoute = routes.find((route) => route.id === featuredRouteId) ?? null;
+					setFeaturedRouteName(featuredRoute?.name ?? null);
+				} catch {
+					if (alive) {
+						setFeaturedRouteName(null);
+					}
+				}
+			}
+
+			void loadFeaturedRouteName();
+
+			return () => {
+				alive = false;
+			};
+		}, [canManageContent])
+	);
+
+	const quickActions = useMemo(() => {
+		if (canManageContent) return ADMIN_QUICK_ACTIONS;
+
+		return USER_QUICK_ACTIONS.map((action) => {
+			if (action.route !== "/admin/rota-destaque") return action;
+
+			return {
+				...action,
+				description: featuredRouteName
+					? "Ver a rota selecionada pelo admin"
+					: "Ainda sem rota selecionada pelo admin",
+				featuredRouteName,
+			};
+		});
+	}, [canManageContent, featuredRouteName]);
 
 	function handleLogout() {
 		clearAuth();
@@ -67,8 +138,10 @@ export default function AdminDashboard() {
 			<View style={styles.header}>
 				<View>
 					<BrandLogo size={54} iconSize={24} withFrame />
-					<Text style={[styles.muted, { color: colors.mutedForeground }]}>Área de Administração</Text>
-					<Text style={[styles.title, { color: colors.foreground }]}>
+					{canManageContent ? (
+						<Text style={[styles.muted, { color: colors.mutedForeground }]}>Área de Administração</Text>
+					) : null}
+					<Text style={[styles.title, { color: colors.foreground }, !canManageContent && styles.userTitleSpacing]}>
 						Olá, {user?.name?.split(" ")[0] ?? "Admin"} 👋
 					</Text>
 					{activePreset?.description ? (
@@ -79,9 +152,31 @@ export default function AdminDashboard() {
 						<Text style={[styles.badgeText, { color: colors.primary }]}>{canManageContent ? "Admin" : "Utilizador"}</Text>
 					</View>
 				</View>
-				<Pressable onPress={handleLogout} style={[styles.logoutBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
-					<Feather name="log-out" size={18} color={colors.iconMuted} />
-				</Pressable>
+				<View style={styles.headerActionsRow}>
+					<View style={[styles.modeSelector, { backgroundColor: colors.card, borderColor: colors.border }]}>
+						<Pressable
+							style={[
+								styles.modeOption,
+								mode === "light" && [styles.modeOptionActive, { backgroundColor: colors.accentSoft }],
+							]}
+							onPress={() => void setThemeModePreference("light")}
+						>
+							<Feather name="sun" size={15} color={mode === "light" ? colors.primary : colors.iconMuted} />
+						</Pressable>
+						<Pressable
+							style={[
+								styles.modeOption,
+								mode === "dark" && [styles.modeOptionActive, { backgroundColor: colors.accentSoft }],
+							]}
+							onPress={() => void setThemeModePreference("dark")}
+						>
+							<Feather name="moon" size={15} color={mode === "dark" ? colors.primary : colors.iconMuted} />
+						</Pressable>
+					</View>
+					<Pressable onPress={handleLogout} style={[styles.logoutBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+						<Feather name="log-out" size={18} color={colors.iconMuted} />
+					</Pressable>
+				</View>
 			</View>
 
 			{/* Info user */}
@@ -103,9 +198,38 @@ export default function AdminDashboard() {
 			{/* Ações rápidas */}
 			<Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Gestão</Text>
 			<View style={styles.actionsGrid}>
-				{quickActions.map((action) => (
+				{quickActions.map((action) => {
+					const isFeaturedRouteCard = !canManageContent && action.route === "/admin/rota-destaque";
+
+					if (isFeaturedRouteCard) {
+						return (
+							<Pressable
+								key={action.route}
+								style={({ pressed }) => [
+									styles.actionCard,
+									styles.actionCardFeatured,
+									{ backgroundColor: colors.card, borderColor: colors.primary, shadowColor: colors.shadow },
+									pressed && [styles.actionCardPressed, { borderColor: colors.primary }],
+								]}
+								onPress={() => router.push(action.route)}
+							>
+								<Text style={[styles.featuredHeadline, { color: colors.foreground }]} numberOfLines={2}>
+									{featuredRouteName ?? "Sem rota em destaque"}
+								</Text>
+								<View style={styles.featuredBottomRow}>
+									<Text style={[styles.featuredSubtitle, { color: colors.mutedForeground }]}>Rota em destaque</Text>
+									<View style={[styles.featuredMoreBtn, { backgroundColor: colors.primary }]}> 
+										<Text style={[styles.featuredMoreText, { color: colors.primaryForeground }]}>Saber mais</Text>
+										<Feather name="arrow-right" size={12} color={colors.primaryForeground} />
+									</View>
+								</View>
+							</Pressable>
+						);
+					}
+
+					return (
 					<Pressable
-						key={action.label}
+						key={action.route}
 						style={({ pressed }) => [
 							styles.actionCard,
 							{ backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow },
@@ -119,7 +243,8 @@ export default function AdminDashboard() {
 						<Text style={[styles.actionLabel, { color: colors.foreground }]}>{action.label}</Text>
 						<Text style={[styles.actionDesc, { color: colors.mutedForeground }]}>{action.description}</Text>
 					</Pressable>
-				))}
+					);
+				})}
 			</View>
 		</ScrollView>
 	);
@@ -137,6 +262,29 @@ const styles = StyleSheet.create({
 		alignItems: "flex-start",
 		marginBottom: 24,
 	},
+	headerActionsRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 8,
+	},
+	modeSelector: {
+		flexDirection: "row",
+		alignItems: "center",
+		borderWidth: 1,
+		borderRadius: 999,
+		padding: 4,
+		gap: 4,
+	},
+	modeOption: {
+		width: 30,
+		height: 30,
+		borderRadius: 15,
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	modeOptionActive: {
+		opacity: 1,
+	},
 	muted: {
 		color: "rgba(248,250,252,0.5)",
 		textTransform: "uppercase",
@@ -150,6 +298,9 @@ const styles = StyleSheet.create({
 		fontSize: 26,
 		fontWeight: "800",
 		marginBottom: 8,
+	},
+	userTitleSpacing: {
+		marginTop: 12,
 	},
 	themeDescription: {
 		fontSize: 12,
@@ -244,6 +395,14 @@ const styles = StyleSheet.create({
 		opacity: 0.7,
 		borderColor: "#7a1313",
 	},
+	actionCardFeatured: {
+		width: "100%",
+		borderWidth: 2,
+		paddingVertical: 20,
+		shadowOpacity: 0.28,
+		shadowRadius: 14,
+		elevation: 8,
+	},
 	actionIconCircle: {
 		width: 44,
 		height: 44,
@@ -260,5 +419,33 @@ const styles = StyleSheet.create({
 	actionDesc: {
 		fontSize: 12,
 		lineHeight: 17,
+	},
+	featuredHeadline: {
+		fontSize: 24,
+		fontWeight: "800",
+		lineHeight: 30,
+		marginBottom: 10,
+	},
+	featuredBottomRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+		gap: 10,
+	},
+	featuredSubtitle: {
+		fontSize: 13,
+		fontWeight: "600",
+	},
+	featuredMoreBtn: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 5,
+		paddingHorizontal: 12,
+		paddingVertical: 8,
+		borderRadius: 999,
+	},
+	featuredMoreText: {
+		fontSize: 12,
+		fontWeight: "700",
 	},
 });

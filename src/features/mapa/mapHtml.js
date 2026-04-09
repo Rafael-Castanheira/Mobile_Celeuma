@@ -3,21 +3,45 @@ const DEFAULT_MAP_CENTER = {
   longitude: -43.3536,
 };
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function asFiniteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 export function buildMapHtml(points, embeddedRoutes = [], theme) {
-  const initialCenter = points[0] ?? DEFAULT_MAP_CENTER;
+  const firstValidPoint = points.find(
+    (point) => asFiniteNumber(point?.latitude) !== null && asFiniteNumber(point?.longitude) !== null
+  );
+  const initialCenter = firstValidPoint
+    ? {
+        latitude: asFiniteNumber(firstValidPoint.latitude),
+        longitude: asFiniteNumber(firstValidPoint.longitude),
+      }
+    : DEFAULT_MAP_CENTER;
   const markers = points
-    .map(
-      (p, i) =>
-        `L.marker([${p.latitude}, ${p.longitude}], { icon: markerIcon })
+    .map((p, i) => {
+      const latitude = asFiniteNumber(p?.latitude);
+      const longitude = asFiniteNumber(p?.longitude);
+      if (latitude === null || longitude === null) return "";
+
+      const popupHtml = `<div style='min-width:170px'><strong style='display:block;margin-bottom:4px'>${escapeHtml(p?.title)}</strong><span style='display:block;margin-bottom:8px'>${escapeHtml(p?.detail)}</span><a href='#' class='point-open-360' data-marker-index='${i}'>Abrir visao 360</a></div>`;
+
+      return `L.marker([${latitude}, ${longitude}], { icon: markerIcon })
           .addTo(map)
-          .bindPopup("<div style='min-width:160px'><strong style='display:block;margin-bottom:4px'>${p.title}</strong><span>${p.detail}</span></div>")
-          .on('click', function() {
-            window.ReactNativeWebView.postMessage(JSON.stringify({ markerIndex: ${i} }));
-          })
+          .bindPopup(${JSON.stringify(popupHtml)})
           .on('contextmenu', function() {
             window.ReactNativeWebView.postMessage(JSON.stringify({ longPressIndex: ${i} }));
-          });`
-    )
+          });`;
+    })
     .join("\n");
 
   return `<!DOCTYPE html>
@@ -26,7 +50,9 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body, #map { width: 100%; height: 100%; }
@@ -80,6 +106,15 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
     .leaflet-popup-tip {
       background: ${theme.card};
     }
+    .point-open-360 {
+      color: #ffffff;
+      font-weight: 700;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .point-open-360:active {
+      opacity: 0.82;
+    }
     .point-pin-wrapper {
       background: transparent;
       border: none;
@@ -90,8 +125,8 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
       border-radius: 13px 13px 13px 0;
       transform: rotate(-45deg);
       background: ${theme.primary};
-      border: 2px solid ${theme.foreground};
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+      border: 1.5px solid rgba(255, 255, 255, 0.95);
+      box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.55), 0 2px 6px rgba(0, 0, 0, 0.35);
       position: relative;
     }
     .point-pin-dot {
@@ -99,6 +134,7 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
       height: 9px;
       border-radius: 999px;
       background: ${theme.card};
+      border: 1px solid rgba(255, 255, 255, 0.85);
       position: absolute;
       top: 7px;
       left: 7px;
@@ -108,6 +144,19 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
 <body>
   <div id="map"></div>
   <script>
+    if (typeof window.L === 'undefined') {
+      var mapContainer = document.getElementById('map');
+      mapContainer.style.display = 'flex';
+      mapContainer.style.alignItems = 'center';
+      mapContainer.style.justifyContent = 'center';
+      mapContainer.style.padding = '20px';
+      mapContainer.style.background = '${theme.background}';
+      mapContainer.style.color = '${theme.foreground}';
+      mapContainer.style.fontFamily = 'sans-serif';
+      mapContainer.style.textAlign = 'center';
+      mapContainer.innerHTML = 'Nao foi possivel carregar o mapa. Verifica a ligacao de rede e tenta novamente.';
+      window.ReactNativeWebView.postMessage(JSON.stringify({ mapInitError: 'leaflet-lib-unavailable' }));
+    } else {
     var map = L.map('map', { maxZoom: 17, zoomControl: false }).setView([${initialCenter.latitude}, ${initialCenter.longitude}], 14);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     var baseLayers = {
@@ -137,8 +186,17 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
       activeBaseLayer.addTo(map);
     };
     window.setBaseLayer('satellite');
+    document.addEventListener('click', function(event) {
+      var action = event.target && event.target.closest ? event.target.closest('.point-open-360') : null;
+      if (!action) return;
+      event.preventDefault();
+      var markerIndex = Number(action.getAttribute('data-marker-index'));
+      if (!Number.isFinite(markerIndex)) return;
+      window.ReactNativeWebView.postMessage(JSON.stringify({ markerIndex: markerIndex }));
+    });
     var routeColor = '${theme.primary}';
-    var routeColorSelected = '${theme.foreground}';
+    var routeColorSelected = '${theme.primary}';
+    var routeOutlineColor = '#ffffff';
     var markerIcon = L.divIcon({
       className: 'point-pin-wrapper',
       html: "<div class='point-pin'><div class='point-pin-dot'></div></div>",
@@ -158,12 +216,20 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
     function styleRoute(routeId, isSelected) {
       var route = routes[routeId];
       if (!route || !route.polyline) return;
+      if (route.outlinePolyline) {
+        route.outlinePolyline.setStyle(
+          isSelected
+            ? { color: routeOutlineColor, weight: 8, opacity: 0.65 }
+            : { color: routeOutlineColor, weight: 6, opacity: 0.5 }
+        );
+      }
       route.polyline.setStyle(
         isSelected
           ? { color: routeColorSelected, weight: 6, opacity: 1 }
           : { color: routeColor, weight: 4, opacity: 0.95 }
       );
       if (isSelected) {
+        if (route.outlinePolyline) route.outlinePolyline.bringToFront();
         route.polyline.bringToFront();
         if (route.hitPolyline) route.hitPolyline.bringToFront();
       }
@@ -221,6 +287,14 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
       }
 
       if (routes[id]) { window.removeRoute(id); }
+      var outlinePolyline = L.polyline(latLngs, {
+        color: routeOutlineColor,
+        weight: 6,
+        opacity: 0.5,
+        interactive: false,
+        lineCap: 'round',
+        lineJoin: 'round'
+      });
       var polyline = L.polyline(latLngs, {
         color: routeColor,
         weight: 4,
@@ -238,13 +312,14 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
       polyline.on('click', onAddRouteClick);
       hitPolyline.on('click', onAddRouteClick);
 
-      routes[id] = { polyline: polyline, hitPolyline: hitPolyline };
+      routes[id] = { outlinePolyline: outlinePolyline, polyline: polyline, hitPolyline: hitPolyline };
 
       if (selectedRouteId === id) {
         styleRoute(id, true);
       }
 
       if (routesVisible) {
+        outlinePolyline.addTo(map);
         polyline.addTo(map);
         hitPolyline.addTo(map);
       }
@@ -267,6 +342,9 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
     };
     window.removeRoute = function(id) {
       if (!routes[id]) return;
+      if (routes[id].outlinePolyline && map.hasLayer(routes[id].outlinePolyline)) {
+        map.removeLayer(routes[id].outlinePolyline);
+      }
       if (routes[id].polyline && map.hasLayer(routes[id].polyline)) {
         map.removeLayer(routes[id].polyline);
       }
@@ -278,6 +356,7 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
     };
     window.clearRoutes = function() {
       Object.values(routes).forEach(function(r) {
+        if (r.outlinePolyline && map.hasLayer(r.outlinePolyline)) { map.removeLayer(r.outlinePolyline); }
         if (r.polyline && map.hasLayer(r.polyline)) { map.removeLayer(r.polyline); }
         if (r.hitPolyline && map.hasLayer(r.hitPolyline)) { map.removeLayer(r.hitPolyline); }
       });
@@ -287,6 +366,7 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
     window.showRoutes = function() {
       routesVisible = true;
       Object.values(routes).forEach(function(r) {
+        if (r.outlinePolyline && !map.hasLayer(r.outlinePolyline)) { r.outlinePolyline.addTo(map); }
         if (r.polyline && !map.hasLayer(r.polyline)) { r.polyline.addTo(map); }
         if (r.hitPolyline && !map.hasLayer(r.hitPolyline)) { r.hitPolyline.addTo(map); }
       });
@@ -294,6 +374,7 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
     window.hideRoutes = function() {
       routesVisible = false;
       Object.values(routes).forEach(function(r) {
+        if (r.outlinePolyline && map.hasLayer(r.outlinePolyline)) { map.removeLayer(r.outlinePolyline); }
         if (r.polyline && map.hasLayer(r.polyline)) { map.removeLayer(r.polyline); }
         if (r.hitPolyline && map.hasLayer(r.hitPolyline)) { map.removeLayer(r.hitPolyline); }
       });
@@ -305,6 +386,14 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
       var _url = 'https://router.project-osrm.org/route/v1/driving/' + _osrmCoords + '?overview=full&geometries=geojson&steps=true';
       function drawPolyline(latLngs, distanceMeters, durationSeconds, steps) {
         if (routes[_id]) { window.removeRoute(_id); }
+        var _outlinePolyline = L.polyline(latLngs, {
+          color: routeOutlineColor,
+          weight: 6,
+          opacity: 0.5,
+          interactive: false,
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
         var _polyline = L.polyline(latLngs, {
           color: routeColor,
           weight: 4,
@@ -321,11 +410,11 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
         }
         _polyline.on('click', onRouteClick);
         _hitPolyline.on('click', onRouteClick);
-        routes[_id] = { polyline: _polyline, hitPolyline: _hitPolyline };
+        routes[_id] = { outlinePolyline: _outlinePolyline, polyline: _polyline, hitPolyline: _hitPolyline };
         if (selectedRouteId === _id) {
           styleRoute(_id, true);
         }
-        if (routesVisible) { _polyline.addTo(map); _hitPolyline.addTo(map); }
+        if (routesVisible) { _outlinePolyline.addTo(map); _polyline.addTo(map); _hitPolyline.addTo(map); }
         selectRoute(_id);
         window.ReactNativeWebView.postMessage(JSON.stringify({ routeRendered: _id }));
         window.ReactNativeWebView.postMessage(JSON.stringify({ routeInfo: { id: _id, distanceMeters: distanceMeters, durationSeconds: durationSeconds, steps: steps } }));
@@ -359,6 +448,14 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
     (function() {
       var _id = ${route.id};
       var _waypoints = ${JSON.stringify(route.coordinates)};
+      var _outlinePolyline = L.polyline(_waypoints, {
+        color: routeOutlineColor,
+        weight: 6,
+        opacity: 0.5,
+        interactive: false,
+        lineCap: 'round',
+        lineJoin: 'round'
+      });
       var _polyline = L.polyline(_waypoints, {
         color: routeColor,
         weight: 4,
@@ -375,11 +472,11 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
       }
       _polyline.on('click', onRouteClick);
       _hitPolyline.on('click', onRouteClick);
-      routes[_id] = { polyline: _polyline, hitPolyline: _hitPolyline };
+      routes[_id] = { outlinePolyline: _outlinePolyline, polyline: _polyline, hitPolyline: _hitPolyline };
       if (selectedRouteId === _id) {
         styleRoute(_id, true);
       }
-      if (routesVisible) { _polyline.addTo(map); _hitPolyline.addTo(map); }
+      if (routesVisible) { _outlinePolyline.addTo(map); _polyline.addTo(map); _hitPolyline.addTo(map); }
     })();
     `
       )
@@ -403,6 +500,7 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
       }
     });
     sendCenter();
+    }
   </script>
 </body>
 </html>`;

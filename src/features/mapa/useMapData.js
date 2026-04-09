@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useAbortController } from "../../../hooks/useAbortController";
-import { getMapPoints, getMapRoutes } from "../../../lib/360api";
+import { useAbortController } from "../../hooks/useAbortController";
+import { getMapPoints, getMapRoutes } from "../../lib/360api";
 
 export function useMapData({ pollIntervalMs = 30_000 } = {}) {
 	const [points, setPoints] = useState([]);
