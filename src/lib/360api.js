@@ -10,6 +10,8 @@ export {
     getPointCategories, updatePonto
 } from "./api/points";
 
+export { getPointMobileData } from "./api/hotspots";
+
 export {
     createTrajeto, deleteRota, getMapRoutes, updateTrajetoDescription
 } from "./api/routes";

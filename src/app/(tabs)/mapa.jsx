@@ -24,6 +24,9 @@ import {
   toPortugueseDirection,
 } from "../../features/mapa/utils";
 
+import { ViewerProvider } from "../../context/ViewerContext";
+import PointViewerModal from "../../features/viewer/PointViewerModal";
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -31,180 +34,6 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function buildPointViewerHtml(sourceUrl, pointTitle, pointDetail, colors) {
-  const safeTitle = escapeHtml(pointTitle);
-  const safeDetail = escapeHtml(pointDetail);
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css" />
-  <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body, #viewer { width: 100%; height: 100%; background: ${colors.background}; }
-    body { font-family: sans-serif; overflow: hidden; }
-    .point-meta {
-      position: absolute;
-      left: 12px;
-      top: 12px;
-      z-index: 10;
-      max-width: calc(100% - 24px);
-      background: ${colors.overlay};
-      color: ${colors.foreground};
-      border: 1px solid ${colors.border};
-      border-radius: 12px;
-      padding: 10px 12px;
-      backdrop-filter: blur(4px);
-    }
-    .point-meta h1 {
-      font-size: 15px;
-      line-height: 20px;
-      margin-bottom: 4px;
-    }
-    .point-meta p {
-      font-size: 13px;
-      line-height: 18px;
-      color: ${colors.mutedForeground};
-    }
-    .viewer-error {
-      position: absolute;
-      inset: 0;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 24px;
-      color: ${colors.foreground};
-      background: ${colors.background};
-      font-size: 14px;
-      line-height: 20px;
-      z-index: 15;
-    }
-  </style>
-</head>
-<body>
-  <div id="viewer"></div>
-  <div class="point-meta">
-    <h1>${safeTitle}</h1>
-    <p>${safeDetail}</p>
-  </div>
-  <div id="viewer-error" class="viewer-error"></div>
-  <script>
-    (function() {
-      function sendMessage(payload) {
-        if (!window.ReactNativeWebView || !window.ReactNativeWebView.postMessage) return;
-        window.ReactNativeWebView.postMessage(JSON.stringify(payload));
-      }
-
-      function showError(message) {
-        var errorNode = document.getElementById('viewer-error');
-        errorNode.style.display = 'flex';
-        errorNode.innerText = message;
-      }
-
-      var panoramaUrl = ${JSON.stringify(sourceUrl)};
-      if (!panoramaUrl || typeof panoramaUrl !== 'string') {
-        showError('Este ponto nao tem imagem 360 disponivel.');
-        sendMessage({ point360Error: 'missing-panorama-url' });
-        return;
-      }
-
-      if (typeof window.pannellum === 'undefined') {
-        showError('Nao foi possivel carregar o visualizador 360.');
-        sendMessage({ point360Error: 'pannellum-lib-unavailable' });
-        return;
-      }
-
-      try {
-        window.pannellum.viewer('viewer', {
-          type: 'equirectangular',
-          panorama: panoramaUrl,
-          autoLoad: true,
-          showControls: true,
-          compass: true,
-          hfov: 110,
-          minHfov: 50,
-          maxHfov: 130
-        });
-      } catch (error) {
-        showError('Nao foi possivel abrir esta imagem 360 neste dispositivo.');
-        sendMessage({ point360Error: (error && error.message) ? error.message : 'viewer-init-failed' });
-      }
-    })();
-  </script>
-</body>
-</html>`;
-}
-
-function resolvePanoramaSource(point) {
-  const apiBaseUrl = BASE_URL.replace(/\/+$/, "");
-
-  function normalizeSource(value) {
-    if (typeof value !== "string") return null;
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-
-    if (/^https?:\/\//i.test(trimmed) || trimmed.startsWith("data:")) {
-      return trimmed;
-    }
-
-    if (/^\/?uploads\//i.test(trimmed) || /^[^\s]+\.(jpg|jpeg|png|webp|gif|bmp|hdr|exr)(\?.*)?$/i.test(trimmed)) {
-      return `${apiBaseUrl}/${trimmed.replace(/^\/+/, "")}`;
-    }
-
-    return `data:image/jpeg;base64,${trimmed}`;
-  }
-
-  return (
-    normalizeSource(point?.environment)
-    ?? normalizeSource(point?.imageUrl)
-    ?? normalizeSource(point?.image)
-  );
-}
-
-function isHttpSource(value) {
-  return typeof value === "string" && /^https?:\/\//i.test(value);
-}
-
-function blobToDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    if (typeof FileReader === "undefined") {
-      reject(new Error("FileReader indisponivel"));
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Falha ao converter imagem"));
-    reader.onloadend = () => {
-      if (typeof reader.result !== "string") {
-        reject(new Error("Resultado invalido na conversao"));
-        return;
-      }
-      resolve(reader.result);
-    };
-    reader.readAsDataURL(blob);
-  });
-}
-
-async function toViewerSourceUrl(sourceUrl) {
-  if (!isHttpSource(sourceUrl)) return sourceUrl;
-
-  const response = await fetch(sourceUrl);
-  if (!response.ok) {
-    throw new Error(`Falha ao descarregar imagem (${response.status})`);
-  }
-
-  if (typeof response.blob !== "function") {
-    throw new Error("Leitura de blob nao suportada no dispositivo");
-  }
-
-  const blob = await response.blob();
-  return blobToDataUrl(blob);
 }
 
 export default function MapaScreen() {
@@ -393,41 +222,12 @@ export default function MapaScreen() {
     if (index < 0 || index >= points.length) return;
 
     const point = points[index];
-    const sourceUrl = resolvePanoramaSource(point);
 
-    if (!sourceUrl) {
-      showInfo("Este ponto ainda não tem uma imagem 360 disponível.", "Sem visão 360");
-      return;
-    }
-
-    hasShownPointViewerErrorRef.current = false;
     setLongPressedIndex(null);
-    setIsPointViewerLoading(true);
+    setPointViewerData({
+      pointId: point.id,
+    });
     setIsPointViewerOpen(true);
-    setPointViewerData(null);
-
-    const requestId = pointViewerRequestIdRef.current + 1;
-    pointViewerRequestIdRef.current = requestId;
-
-    try {
-      const resolvedViewerSource = await toViewerSourceUrl(sourceUrl);
-      if (pointViewerRequestIdRef.current !== requestId) return;
-
-      setPointViewerData({
-        title: point.title,
-        detail: point.detail,
-        sourceUrl: resolvedViewerSource,
-        pointId: point.id,
-      });
-    } catch {
-      if (pointViewerRequestIdRef.current !== requestId) return;
-      setPointViewerData({
-        title: point.title,
-        detail: point.detail,
-        sourceUrl,
-        pointId: point.id,
-      });
-    }
 
     if (typeof point.id === "number") {
       registarVisualizacao("ponto", point.id).catch(() => {});
@@ -644,22 +444,6 @@ export default function MapaScreen() {
     }),
     [colors.accentSoft, colors.background, colors.border, colors.card, colors.foreground, colors.mutedForeground, colors.overlay, colors.primary, colors.primaryForeground, colors.softOverlay, points]
   );
-
-  const pointViewerHtml = useMemo(() => {
-    if (!pointViewerData?.sourceUrl) return "";
-    return buildPointViewerHtml(
-      pointViewerData.sourceUrl,
-      pointViewerData.title,
-      pointViewerData.detail,
-      {
-        background: colors.background,
-        foreground: colors.foreground,
-        border: colors.border,
-        overlay: colors.overlay,
-        mutedForeground: colors.mutedForeground,
-      }
-    );
-  }, [colors.background, colors.border, colors.foreground, colors.mutedForeground, colors.overlay, pointViewerData]);
 
   const showMapInitError = useCallback((detail) => {
     if (hasShownMapErrorRef.current) return;
@@ -1015,83 +799,17 @@ export default function MapaScreen() {
           </TouchableOpacity>
         )}
 
-        <Modal
-          visible={isPointViewerOpen}
-          animationType="slide"
-          presentationStyle="fullScreen"
-          onRequestClose={closePointViewer}
-        >
-          <View style={{ flex: 1, backgroundColor: colors.background }}>
-            {pointViewerData && (
-              <WebView
-                ref={pointViewerRef}
-                style={{ flex: 1, backgroundColor: colors.background }}
-                source={{ html: pointViewerHtml }}
-                originWhitelist={["*"]}
-                javaScriptEnabled
-                domStorageEnabled
-                mixedContentMode="always"
-                onLoadEnd={() => setIsPointViewerLoading(false)}
-                onError={() => {
-                  setIsPointViewerLoading(false);
-                  if (hasShownPointViewerErrorRef.current) return;
-                  hasShownPointViewerErrorRef.current = true;
-                  showError("Não foi possível carregar a visão 360 deste ponto.", "Erro no visualizador 360");
-                }}
-                onHttpError={() => {
-                  setIsPointViewerLoading(false);
-                  if (hasShownPointViewerErrorRef.current) return;
-                  hasShownPointViewerErrorRef.current = true;
-                  showError("Falha de rede ao abrir a visão 360.", "Erro no visualizador 360");
-                }}
-                onMessage={(event) => {
-                  try {
-                    const payload = JSON.parse(event.nativeEvent.data);
-                    if (!payload?.point360Error) return;
-                    if (hasShownPointViewerErrorRef.current) return;
-                    hasShownPointViewerErrorRef.current = true;
-                    showError("Não foi possível abrir esta imagem no visualizador 360.", "Erro no visualizador 360");
-                  } catch {}
-                }}
-              />
-            )}
-
-            <TouchableOpacity
-              style={[
-                styles.mapBackButton,
-                {
-                  top: top + 8,
-                  left: 12,
-                  right: undefined,
-                  backgroundColor: colors.overlay,
-                  borderColor: colors.border,
-                },
-              ]}
-              onPress={closePointViewer}
-              activeOpacity={0.8}
-            >
-              <Feather name="x" size={18} color={colors.foreground} />
-            </TouchableOpacity>
-
-            {isPointViewerLoading && (
-              <View
-                pointerEvents="none"
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  right: 0,
-                  bottom: 0,
-                  left: 0,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: "rgba(0,0,0,0.22)",
-                }}
-              >
-                <ActivityIndicator size="large" color={colors.primaryForeground} />
-              </View>
-            )}
-          </View>
-        </Modal>
+        {isPointViewerOpen && pointViewerData?.pointId && (
+          <ViewerProvider pointId={pointViewerData.pointId}>
+            <PointViewerModal 
+              isVisible={isPointViewerOpen} 
+              onClose={closePointViewer}
+              top={top}
+              colors={colors}
+              showError={showError}
+            />
+          </ViewerProvider>
+        )}
 
         <CreatePointModal
           isOpen={isCreatePointModalOpen}

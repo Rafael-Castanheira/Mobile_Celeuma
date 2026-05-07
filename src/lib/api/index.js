@@ -6,4 +6,5 @@ export * from "./routes";
 export * from "./stats";
 export * from "./theme";
 export * from "./users";
+export * from "./hotspots";
 
