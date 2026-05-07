@@ -26,15 +26,6 @@ import {
 import { ViewerProvider } from "../../context/ViewerContext";
 import PointViewerModal from "../../features/viewer/PointViewerModal";
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
 export default function MapaScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { top } = useSafeAreaInsets();
@@ -42,7 +33,6 @@ export default function MapaScreen() {
   const { colors } = useAppTheme();
   const { showError, showInfo, showSuccess } = useDialog();
   const webViewRef = useRef(null);
-  const pointViewerRef = useRef(null);
   const [coords, setCoords] = useState({ lat: "--", lng: "--" });
   const [cursorCoords, setCursorCoords] = useState(null);
   const {
@@ -79,7 +69,6 @@ export default function MapaScreen() {
   const [isLoadingPointCategories, setIsLoadingPointCategories] = useState(false);
   const [isCreatingPoint, setIsCreatingPoint] = useState(false);
   const [isPointViewerOpen, setIsPointViewerOpen] = useState(false);
-  const [isPointViewerLoading, setIsPointViewerLoading] = useState(false);
   const [pointViewerData, setPointViewerData] = useState(null);
   const hasBootstrappedRoutes = useRef(false);
   const resolvedRoutesRef = useRef([]);
@@ -236,7 +225,6 @@ export default function MapaScreen() {
   function closePointViewer() {
     pointViewerRequestIdRef.current += 1;
     setIsPointViewerOpen(false);
-    setIsPointViewerLoading(false);
     setPointViewerData(null);
     hasShownPointViewerErrorRef.current = false;
   }

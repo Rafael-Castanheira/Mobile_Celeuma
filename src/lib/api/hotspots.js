@@ -1,4 +1,4 @@
-import { BASE_URL } from "./client";
+import { BASE_URL, fetchWithTimeout } from "./client";
 import { asRecord } from "./normalize";
 
 function resolveMediaUrl(pathOrUrl) {
@@ -19,7 +19,7 @@ export async function getPointMobileData(pointId, params = {}, signal) {
 
 	const endpoint = `${BASE_URL}/mobile/pontos/${pointId}/hotspots?${query.toString()}`;
 
-	const response = await fetch(endpoint, {
+	const response = await fetchWithTimeout(endpoint, {
 		method: "GET",
 		headers: { Accept: "application/json" },
 		signal,

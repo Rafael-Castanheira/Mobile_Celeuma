@@ -1,4 +1,4 @@
-import { BASE_URL, authHeaders } from "./client";
+import { BASE_URL, authHeaders, fetchWithTimeout } from "./client";
 import { asRecord } from "./normalize";
 
 const POINTS_ENDPOINT = `${BASE_URL}/ponto/list`;
@@ -44,7 +44,7 @@ function toMapPoint(ponto) {
 }
 
 export async function getMapPoints(signal) {
-	const response = await fetch(POINTS_ENDPOINT, {
+	const response = await fetchWithTimeout(POINTS_ENDPOINT, {
 		method: "GET",
 		headers: {
 			Accept: "application/json",
@@ -73,7 +73,7 @@ export async function getMapPoints(signal) {
 }
 
 export async function getPointCategories(signal) {
-	const response = await fetch(POINT_CATEGORIES_ENDPOINT, {
+	const response = await fetchWithTimeout(POINT_CATEGORIES_ENDPOINT, {
 		method: "GET",
 		headers: {
 			Accept: "application/json",
@@ -99,7 +99,7 @@ export async function getPointCategories(signal) {
 }
 
 export async function getPointDetails(id, token, signal) {
-	const response = await fetch(POINT_DETAILS_ENDPOINT(id), {
+	const response = await fetchWithTimeout(POINT_DETAILS_ENDPOINT(id), {
 		method: "GET",
 		headers: token ? authHeaders(token) : { Accept: "application/json" },
 		signal,
@@ -141,7 +141,7 @@ export async function createPonto(fields, token) {
 	}
 	if (fields.username) form.append("username", fields.username);
 
-	const res = await fetch(`${BASE_URL}/ponto/create`, {
+	const res = await fetchWithTimeout(`${BASE_URL}/ponto/create`, {
 		method: "POST",
 		headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
 		body: form,
@@ -156,7 +156,7 @@ export async function updatePonto(id, fields, token) {
 	if (fields.latitude !== undefined) form.append("latitude", String(fields.latitude));
 	if (fields.longitude !== undefined) form.append("longitude", String(fields.longitude));
 
-	const res = await fetch(`${BASE_URL}/ponto/update/${id}`, {
+	const res = await fetchWithTimeout(`${BASE_URL}/ponto/update/${id}`, {
 		method: "PATCH",
 		headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
 		body: form,
@@ -165,7 +165,7 @@ export async function updatePonto(id, fields, token) {
 }
 
 export async function deletePonto(id, token) {
-	const res = await fetch(`${BASE_URL}/ponto/delete/${id}`, {
+	const res = await fetchWithTimeout(`${BASE_URL}/ponto/delete/${id}`, {
 		method: "DELETE",
 		headers: { Authorization: `Bearer ${token}`, Accept: "application/json", "Content-Type": "application/json" },
 	});

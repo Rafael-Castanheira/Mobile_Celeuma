@@ -11,6 +11,7 @@ export function ViewerProvider({ pointId: initialPointId, token, children }) {
     
     const [allHotspots, setAllHotspots] = useState([]);
     const [pointMetadata, setPointMetadata] = useState(null);
+    const [alignments, setAlignments] = useState([]);
     
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -42,6 +43,7 @@ export function ViewerProvider({ pointId: initialPointId, token, children }) {
             setCurrentPointId(pointId);
             setAllHotspots(data.hotspots || []);
             setPointMetadata(data.ponto);
+            setAlignments(Array.isArray(data.alinhamentos) ? data.alinhamentos : []);
             setInitialViewPath(data.ponto?.initial_view_path || "");
             
             // Se não foi pedido viewPath, usa a initial
@@ -75,6 +77,29 @@ export function ViewerProvider({ pointId: initialPointId, token, children }) {
         return selectVisibleHotspots(allHotspots, currentViewPath, initialViewPath);
     }, [allHotspots, currentViewPath, initialViewPath]);
 
+    const currentAlignment = useMemo(() => {
+        const normalizedCurrent = String(currentViewPath || "").trim();
+        const normalizedInitial = String(initialViewPath || "").trim();
+        const targetViewPath = normalizedCurrent || normalizedInitial;
+
+        if (!targetViewPath || !Array.isArray(alignments) || alignments.length === 0) {
+            return null;
+        }
+
+        const alignment = alignments.find((item) => String(item?.vista_path || "").trim() === targetViewPath);
+        if (!alignment) return null;
+
+        return {
+            radius: Number.isFinite(Number(alignment.radius)) ? Number(alignment.radius) : 700,
+            verticalOffset: Number.isFinite(Number(alignment.verticalOffset)) ? Number(alignment.verticalOffset) : 0,
+            rotationX: Number.isFinite(Number(alignment.rotationX)) ? Number(alignment.rotationX) : 0,
+            rotationY: Number.isFinite(Number(alignment.rotationY)) ? Number(alignment.rotationY) : -130,
+            rotationZ: Number.isFinite(Number(alignment.rotationZ)) ? Number(alignment.rotationZ) : 0,
+            mirrorX: Boolean(alignment.mirrorX),
+            mirrorY: Boolean(alignment.mirrorY),
+        };
+    }, [alignments, currentViewPath, initialViewPath]);
+
     const navigateToPoint = useCallback((pointId) => {
         loadPoint(pointId, "", true);
     }, [loadPoint]);
@@ -106,6 +131,8 @@ export function ViewerProvider({ pointId: initialPointId, token, children }) {
         allHotspots,
         visibleHotspots,
         pointMetadata,
+        alignments,
+        currentAlignment,
         navigationHistory,
         loading,
         error,

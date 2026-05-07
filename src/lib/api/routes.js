@@ -1,4 +1,4 @@
-import { BASE_URL, authHeaders } from "./client";
+import { BASE_URL, authHeaders, fetchWithTimeout } from "./client";
 import { asRecord, extractRoutePointIds, toNumber } from "./normalize";
 
 const ROUTES_ENDPOINT = `${BASE_URL}/trajeto/list`;
@@ -60,7 +60,7 @@ function extractTrajetos(payload) {
 }
 
 export async function getMapRoutes(signal) {
-	const response = await fetch(ROUTES_ENDPOINT, {
+	const response = await fetchWithTimeout(ROUTES_ENDPOINT, {
 		method: "GET",
 		headers: {
 			Accept: "application/json",
@@ -82,7 +82,7 @@ export async function getMapRoutes(signal) {
 }
 
 export async function createTrajeto(fields, token) {
-	const res = await fetch(`${BASE_URL}/trajeto/create`, {
+	const res = await fetchWithTimeout(`${BASE_URL}/trajeto/create`, {
 		method: "POST",
 		headers: authHeaders(token),
 		body: JSON.stringify(fields),
@@ -91,7 +91,7 @@ export async function createTrajeto(fields, token) {
 }
 
 export async function updateTrajetoDescription(id, description, token) {
-	const res = await fetch(`${BASE_URL}/trajeto/update-description/${id}`, {
+	const res = await fetchWithTimeout(`${BASE_URL}/trajeto/update-description/${id}`, {
 		method: "PATCH",
 		headers: authHeaders(token),
 		body: JSON.stringify({ description }),
@@ -100,7 +100,7 @@ export async function updateTrajetoDescription(id, description, token) {
 }
 
 export async function deleteRota(id, token) {
-	const res = await fetch(`${BASE_URL}/trajeto/rota/delete/${id}`, {
+	const res = await fetchWithTimeout(`${BASE_URL}/trajeto/rota/delete/${id}`, {
 		method: "DELETE",
 		headers: authHeaders(token),
 	});

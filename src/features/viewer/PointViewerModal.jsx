@@ -26,6 +26,8 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
         loading, 
         error, 
         currentViewPath, 
+        initialViewPath,
+        currentAlignment,
         pointMetadata,
         navigateBack,
         navigateToPoint,
@@ -52,9 +54,22 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
     }, [error, hasShownError, showError]);
 
     // O URL da imagem da vista atual
-    // Se for o initialView, usamos a imagem_url (absoluta)
-    // Caso contrário (se currentViewPath estiver definido), resolve-o para URL absoluto
-    const sourceUrl = pointMetadata?.image_url || pointMetadata?.imageUrl || resolveMediaUrl(currentViewPath) || "";
+    // - Vista inicial: preferir `image_url` devolvido pelo backend (absoluto)
+    // - Outras vistas: resolver `currentViewPath` para URL absoluto
+    const normalizedCurrentViewPath = String(currentViewPath || "").trim();
+    const normalizedInitialViewPath = String(initialViewPath || "").trim();
+    const isInitialView =
+        !normalizedCurrentViewPath || normalizedCurrentViewPath === normalizedInitialViewPath;
+
+    const sourceUrl = isInitialView
+        ? (
+              pointMetadata?.image_url ||
+              pointMetadata?.imageUrl ||
+              resolveMediaUrl(normalizedInitialViewPath) ||
+              resolveMediaUrl(normalizedCurrentViewPath) ||
+              ""
+          )
+        : resolveMediaUrl(normalizedCurrentViewPath) || "";
     
     // Gera o HTML do A-Frame
     const pointViewerHtml = React.useMemo(() => {
@@ -71,9 +86,13 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
                 mutedForeground: colors.mutedForeground,
                 card: colors.card,
                 primary: colors.primary
+            },
+            {
+                baseUrl: BASE_URL,
+                dome: currentAlignment || undefined,
             }
         );
-    }, [sourceUrl, pointMetadata, colors]);
+    }, [sourceUrl, pointMetadata, colors, currentAlignment]);
 
     if (!isVisible) return null;
 

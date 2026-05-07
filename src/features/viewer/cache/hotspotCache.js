@@ -1,8 +1,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getPointDetails, getPointMobileData } from "../../../lib/360api";
+import { registerCacheItem, updateCacheAccessTime } from "./cacheManager";
 
 const CACHE_PREFIX = "@g360:hotspots:";
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas
 
 function getCacheKey(pointId) {
     return `${CACHE_PREFIX}${pointId}`;
@@ -45,13 +46,14 @@ export async function fetchWithCache(pointId, token, signal) {
                 await AsyncStorage.removeItem(key).catch(() => {});
             }
         }
-    } catch (err) {
+    } catch (_err) {
         // Ignorar falhas de leitura
     }
 
     // 2. Tentar buscar da rede (stale-while-revalidate)
     // Se temos cache, retornamos imediatamente mas lançamos a revalidação em background (sem await)
     if (cachedData) {
+        updateCacheAccessTime(pointId).catch(() => {}); // Atualizar tempo de acesso para LRU
         revalidateInBg(pointId, key, token).catch(() => {});
         return { data: cachedData, stale: true };
     }
@@ -60,10 +62,15 @@ export async function fetchWithCache(pointId, token, signal) {
     try {
         const data = await loadPointData(pointId, token, signal);
         
-        // Guardar na cache
+        // Guardar na cache com gestão de espaço
         try {
-            await AsyncStorage.setItem(key, JSON.stringify({ timestamp: now, data }));
-        } catch (e) {}
+            const cacheData = { timestamp: now, data };
+            await AsyncStorage.setItem(key, JSON.stringify(cacheData));
+            // Registrar no índice para gestão de espaço em disco
+            await registerCacheItem(pointId, cacheData);
+        } catch (e) {
+            console.warn("Failed to save cache:", e);
+        }
 
         return { data, stale: false };
     } catch (networkError) {
@@ -74,7 +81,7 @@ export async function fetchWithCache(pointId, token, signal) {
                 const parsed = JSON.parse(rawCache);
                 if (parsed?.data) return { data: parsed.data, stale: true, offline: true };
             }
-        } catch (e) {}
+        } catch (_e) {}
 
         throw networkError;
     }
@@ -82,5 +89,8 @@ export async function fetchWithCache(pointId, token, signal) {
 
 async function revalidateInBg(pointId, key, token) {
     const data = await loadPointData(pointId, token);
-    await AsyncStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data }));
+    const cacheData = { timestamp: Date.now(), data };
+    await AsyncStorage.setItem(key, JSON.stringify(cacheData));
+    // Registrar no índice de cache
+    await registerCacheItem(pointId, cacheData).catch(() => {});
 }

@@ -16,6 +16,20 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx expo start
    ```
 
+### Backend URL (API)
+
+Por defeito, a app usa um fallback de `BASE_URL`. Para apontar para outro backend (ex: o teu PC na rede), define a env var `EXPO_PUBLIC_API_URL`.
+
+**Windows (PowerShell):**
+```powershell
+$env:EXPO_PUBLIC_API_URL="http://192.168.1.10:3000"; npx expo start
+```
+
+**macOS/Linux:**
+```bash
+EXPO_PUBLIC_API_URL=http://192.168.1.10:3000 npx expo start
+```
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)

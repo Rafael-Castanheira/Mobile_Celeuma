@@ -1,4 +1,4 @@
-import { BASE_URL, authHeaders } from "./client";
+import { BASE_URL, authHeaders, fetchWithTimeout } from "./client";
 import { asRecord, toNumber } from "./normalize";
 
 function toThemeVariables(value) {
@@ -42,7 +42,7 @@ function normalizeThemePreset(value) {
 }
 
 export async function getThemePresets(signal) {
-	const res = await fetch(`${BASE_URL}/theme/list`, {
+	const res = await fetchWithTimeout(`${BASE_URL}/theme/list`, {
 		headers: { Accept: "application/json" },
 		signal,
 	});
@@ -55,7 +55,7 @@ export async function getThemePresets(signal) {
 }
 
 export async function getActiveThemePreset(signal) {
-	const res = await fetch(`${BASE_URL}/theme/active`, {
+	const res = await fetchWithTimeout(`${BASE_URL}/theme/active`, {
 		headers: { Accept: "application/json" },
 		signal,
 	});
@@ -70,7 +70,7 @@ export async function getActiveThemePreset(signal) {
 }
 
 export async function setActiveThemePreset(presetId, token) {
-	const res = await fetch(`${BASE_URL}/theme/set-active`, {
+	const res = await fetchWithTimeout(`${BASE_URL}/theme/set-active`, {
 		method: "POST",
 		headers: authHeaders(token),
 		body: JSON.stringify({ presetId }),
@@ -83,7 +83,7 @@ export async function setActiveThemePreset(presetId, token) {
 }
 
 export async function getLandingContent(signal) {
-	const res = await fetch(`${BASE_URL}/theme/landing-content`, {
+	const res = await fetchWithTimeout(`${BASE_URL}/theme/landing-content`, {
 		headers: { Accept: "application/json" },
 		signal,
 	});
