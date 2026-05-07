@@ -1,7 +1,34 @@
-import { BASE_URL } from "./client";
+import { BASE_URL, authHeaders } from "./client";
+import { asRecord } from "./normalize";
 
 const POINTS_ENDPOINT = `${BASE_URL}/ponto/list`;
 const POINT_CATEGORIES_ENDPOINT = `${BASE_URL}/categoria/list`;
+const POINT_DETAILS_ENDPOINT = (id) => `${BASE_URL}/ponto/${id}/detalhes`;
+
+function resolveMediaUrl(pathOrUrl) {
+	if (!pathOrUrl) return "";
+	if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+	if (pathOrUrl.startsWith("data:")) return pathOrUrl;
+	const normalizedPath = pathOrUrl.replace(/^\/+/, "");
+	const uploadPath = normalizedPath.startsWith("uploads/")
+		? normalizedPath
+		: `uploads/${normalizedPath}`;
+	return `${BASE_URL.replace(/\/+$/, "")}/${uploadPath}`;
+}
+
+function normalizePointDetails(ponto) {
+	if (!ponto || typeof ponto !== "object") return null;
+
+	const imageUrl = ponto.image_url ?? ponto.imageUrl ?? (ponto.imagePath ? resolveMediaUrl(ponto.imagePath) : "");
+
+	return {
+		...ponto,
+		image_url: imageUrl,
+		imageUrl: ponto.imageUrl ?? imageUrl ?? null,
+		image_path: ponto.image_path ?? ponto.imagePath ?? null,
+		environment: ponto.environment ?? imageUrl ?? null,
+	};
+}
 
 function toMapPoint(ponto) {
 	return {
@@ -69,6 +96,32 @@ export async function getPointCategories(signal) {
 			id_categoria: categoria.id_categoria,
 			name: categoria.name,
 		}));
+}
+
+export async function getPointDetails(id, token, signal) {
+	const response = await fetch(POINT_DETAILS_ENDPOINT(id), {
+		method: "GET",
+		headers: token ? authHeaders(token) : { Accept: "application/json" },
+		signal,
+	});
+
+	if (!response.ok) {
+		throw new Error(`Falha ao carregar detalhes do ponto (${response.status}).`);
+	}
+
+	const payload = await response.json();
+	const data = asRecord(payload);
+	const ponto = normalizePointDetails(data?.data?.ponto);
+	const alinhamentos = Array.isArray(data?.data?.alinhamentos) ? data.data.alinhamentos : null;
+
+	if (!data?.success || !ponto || !Array.isArray(alinhamentos)) {
+		throw new Error("Resposta inválida da API de detalhes do ponto.");
+	}
+
+	return {
+		ponto,
+		alinhamentos,
+	};
 }
 
 export async function createPonto(fields, token) {

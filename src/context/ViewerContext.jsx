@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useState, useCallback, useMemo, useRef } from "react";
+import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { fetchWithCache } from "../features/viewer/cache/hotspotCache";
 import { selectVisibleHotspots } from "../features/viewer/selectVisibleHotspots";
 
 const ViewerContext = createContext(null);
 
-export function ViewerProvider({ pointId: initialPointId, children }) {
+export function ViewerProvider({ pointId: initialPointId, token, children }) {
     const [currentPointId, setCurrentPointId] = useState(initialPointId);
     const [currentViewPath, setCurrentViewPath] = useState("");
     const [initialViewPath, setInitialViewPath] = useState("");
@@ -33,7 +33,7 @@ export function ViewerProvider({ pointId: initialPointId, children }) {
         setError(null);
 
         try {
-            const { data } = await fetchWithCache(pointId, abortControllerRef.current.signal);
+            const { data } = await fetchWithCache(pointId, token, abortControllerRef.current.signal);
             
             if (pushToHistory && currentPointId) {
                 setNavigationHistory(prev => [...prev, { pointId: currentPointId, viewPath: currentViewPath }]);
@@ -55,7 +55,7 @@ export function ViewerProvider({ pointId: initialPointId, children }) {
         } finally {
             setLoading(false);
         }
-    }, [currentPointId, currentViewPath]);
+    }, [currentPointId, currentViewPath, token]);
 
     // Initial load
     React.useEffect(() => {

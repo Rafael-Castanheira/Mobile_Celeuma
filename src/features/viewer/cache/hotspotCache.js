@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getPointMobileData } from "../../../lib/360api";
+import { getPointDetails, getPointMobileData } from "../../../lib/360api";
 
 const CACHE_PREFIX = "@g360:hotspots:";
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -8,7 +8,27 @@ function getCacheKey(pointId) {
     return `${CACHE_PREFIX}${pointId}`;
 }
 
-export async function fetchWithCache(pointId, signal) {
+async function loadPointData(pointId, token, signal) {
+    const [mobileResult, detailsResult] = await Promise.allSettled([
+        getPointMobileData(pointId, { includeAll: true }, signal),
+        token ? getPointDetails(pointId, token, signal) : Promise.resolve(null),
+    ]);
+
+    if (mobileResult.status !== "fulfilled") {
+        throw mobileResult.reason;
+    }
+
+    const mobileData = mobileResult.value;
+    const detailsData = detailsResult.status === "fulfilled" ? detailsResult.value : null;
+
+    return {
+        ...mobileData,
+        ponto: detailsData?.ponto ? { ...mobileData.ponto, ...detailsData.ponto } : mobileData.ponto,
+        alinhamentos: detailsData?.alinhamentos || [],
+    };
+}
+
+export async function fetchWithCache(pointId, token, signal) {
     const key = getCacheKey(pointId);
     const now = Date.now();
     let cachedData = null;
@@ -32,13 +52,13 @@ export async function fetchWithCache(pointId, signal) {
     // 2. Tentar buscar da rede (stale-while-revalidate)
     // Se temos cache, retornamos imediatamente mas lançamos a revalidação em background (sem await)
     if (cachedData) {
-        revalidateInBg(pointId, key).catch(() => {});
+        revalidateInBg(pointId, key, token).catch(() => {});
         return { data: cachedData, stale: true };
     }
 
     // Se não temos cache, buscar da rede bloqueando
     try {
-        const data = await getPointMobileData(pointId, { includeAll: true }, signal);
+        const data = await loadPointData(pointId, token, signal);
         
         // Guardar na cache
         try {
@@ -60,7 +80,7 @@ export async function fetchWithCache(pointId, signal) {
     }
 }
 
-async function revalidateInBg(pointId, key) {
-    const data = await getPointMobileData(pointId, { includeAll: true });
+async function revalidateInBg(pointId, key, token) {
+    const data = await loadPointData(pointId, token);
     await AsyncStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data }));
 }

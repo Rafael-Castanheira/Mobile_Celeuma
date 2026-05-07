@@ -7,7 +7,7 @@ export {
 
 export {
     createPonto, deletePonto, getMapPoints,
-    getPointCategories, updatePonto
+    getPointCategories, getPointDetails, updatePonto
 } from "./api/points";
 
 export { getPointMobileData } from "./api/hotspots";

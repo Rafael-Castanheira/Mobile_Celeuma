@@ -2,14 +2,13 @@ import { Feather } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import * as ImagePicker from "expo-image-picker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Modal, ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
+import { ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
 import { useAuth } from "../../context/AuthContext";
 import { useDialog } from "../../context/DialogContext";
 import { useAppTheme } from "../../context/ThemeContext";
 import { createPonto, getMapPoints, getPointCategories, registarVisualizacao } from "../../lib/360api";
-import { BASE_URL } from "../../lib/api/client";
 
 import CreatePointModal from "../../features/mapa/components/CreatePointModal";
 import RoutesScreenModal from "../../features/mapa/components/RoutesScreenModal";
@@ -18,10 +17,10 @@ import { fetchOSRMRoute } from "../../features/mapa/osrm";
 import { styles } from "../../features/mapa/styles";
 import { useMapData } from "../../features/mapa/useMapData";
 import {
-  approximatePolylineDistanceMeters,
-  formatDistance,
-  formatDuration,
-  toPortugueseDirection,
+    approximatePolylineDistanceMeters,
+    formatDistance,
+    formatDuration,
+    toPortugueseDirection,
 } from "../../features/mapa/utils";
 
 import { ViewerProvider } from "../../context/ViewerContext";
@@ -800,7 +799,7 @@ export default function MapaScreen() {
         )}
 
         {isPointViewerOpen && pointViewerData?.pointId && (
-          <ViewerProvider pointId={pointViewerData.pointId}>
+          <ViewerProvider pointId={pointViewerData.pointId} token={token}>
             <PointViewerModal 
               isVisible={isPointViewerOpen} 
               onClose={closePointViewer}

@@ -54,7 +54,7 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
     // O URL da imagem da vista atual
     // Se for o initialView, usamos a imagem_url (absoluta)
     // Caso contrário (se currentViewPath estiver definido), resolve-o para URL absoluto
-    const sourceUrl = pointMetadata?.image_url || resolveMediaUrl(currentViewPath) || "";
+    const sourceUrl = pointMetadata?.image_url || pointMetadata?.imageUrl || resolveMediaUrl(currentViewPath) || "";
     
     // Gera o HTML do A-Frame
     const pointViewerHtml = React.useMemo(() => {
