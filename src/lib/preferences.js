@@ -27,7 +27,7 @@ export async function getFavoritePointIds(userId) {
 	}
 }
 
-export async function setFavoritePointIds(userId, pointIds) {
+async function setFavoritePointIds(userId, pointIds) {
 	const normalizedIds = normalizeNumberArray(pointIds);
 	await AsyncStorage.setItem(getUserFavoritePointsKey(userId), JSON.stringify(normalizedIds));
 	return normalizedIds;

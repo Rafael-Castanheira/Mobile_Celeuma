@@ -137,7 +137,7 @@ async function cleanCacheIfNeeded(index, targetSize) {
 /**
  * Realiza limpeza completa: remove todos os items expirados e verifica espaço
  */
-export async function performCacheCleanup() {
+async function performCacheCleanup() {
   try {
     const index = await getCacheIndex();
     const now = Date.now();
@@ -173,7 +173,7 @@ export async function performCacheCleanup() {
 /**
  * Obtém estatísticas de cache
  */
-export async function getCacheStats() {
+async function getCacheStats() {
   try {
     const index = await getCacheIndex();
     const now = Date.now();
@@ -202,7 +202,7 @@ export async function getCacheStats() {
 /**
  * Limpa completamente o cache (para debug/reset)
  */
-export async function clearAllCache() {
+async function clearAllCache() {
   try {
     const index = await getCacheIndex();
     for (const pointId of Object.keys(index)) {

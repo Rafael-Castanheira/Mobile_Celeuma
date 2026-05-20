@@ -50,12 +50,12 @@ function parseHslToken(value) {
 	};
 }
 
-export function isThemeColorValue(value) {
+function isThemeColorValue(value) {
 	const trimmed = value.trim();
 	return /^(#|rgb\(|rgba\(|hsl\(|hsla\()/i.test(trimmed) || parseHslToken(trimmed) !== null;
 }
 
-export function normalizeThemeColor(value) {
+function normalizeThemeColor(value) {
 	const trimmed = value.trim();
 	if (/^(#|rgb\(|rgba\()/i.test(trimmed)) return trimmed;
 
@@ -69,7 +69,7 @@ export function normalizeThemeColor(value) {
 	return `hsl(${hsl.h}, ${hsl.s}, ${hsl.l})`;
 }
 
-export function withOpacity(value, opacity) {
+function withOpacity(value, opacity) {
 	const hsl = parseHslToken(value);
 	if (hsl) {
 		return `hsla(${hsl.h}, ${hsl.s}, ${hsl.l}, ${Math.max(0, Math.min(1, opacity))})`;

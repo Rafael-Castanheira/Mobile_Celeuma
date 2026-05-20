@@ -1,4 +1,4 @@
-export const DEFAULT_LIGHT_VARS = {
+const DEFAULT_LIGHT_VARS = {
 	background: "0 0% 100%",
 	foreground: "0 0% 3.9%",
 	card: "0 0% 100%",
@@ -25,7 +25,7 @@ export const DEFAULT_LIGHT_VARS = {
 	"chart-5": "27 87% 67%",
 };
 
-export const DEFAULT_DARK_VARS = {
+const DEFAULT_DARK_VARS = {
 	background: "222 24% 8%",
 	foreground: "0 0% 96%",
 	card: "222 20% 12%",
@@ -96,12 +96,12 @@ function parseHslToken(value) {
 	};
 }
 
-export function isThemeColorValue(value) {
+function isThemeColorValue(value) {
 	const trimmed = value.trim();
 	return /^(#|rgb\(|rgba\(|hsl\(|hsla\()/i.test(trimmed) || parseHslToken(trimmed) !== null;
 }
 
-export function normalizeThemeColor(value) {
+function normalizeThemeColor(value) {
 	const trimmed = value.trim();
 	if (/^(#|rgb\(|rgba\()/i.test(trimmed)) return trimmed;
 
@@ -115,7 +115,7 @@ export function normalizeThemeColor(value) {
 	return `hsl(${hsl.h}, ${hsl.s}, ${hsl.l})`;
 }
 
-export function withOpacity(value, opacity) {
+function withOpacity(value, opacity) {
 	const hsl = parseHslToken(value);
 	if (hsl) {
 		return `hsla(${hsl.h}, ${hsl.s}, ${hsl.l}, ${Math.max(0, Math.min(1, opacity))})`;

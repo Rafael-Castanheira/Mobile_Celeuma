@@ -3,7 +3,7 @@ import { Image, StyleSheet, View } from "react-native";
 import { useAppTheme } from "../context/ThemeContext";
 
 export default function BrandLogo({ size = 88, iconSize = 40, withFrame = true }) {
-	const { colors, logoUrl } = useAppTheme();
+	const { colors, logoUrl, isDark } = useAppTheme();
 
 	return (
 		<View
@@ -13,9 +13,11 @@ export default function BrandLogo({ size = 88, iconSize = 40, withFrame = true }
 					width: size,
 					height: size,
 					borderRadius: size / 2,
-					backgroundColor: withFrame ? colors.card : "transparent",
+					backgroundColor: withFrame 
+						? (isDark ? "#F8F9FA" : colors.card) 
+						: (isDark && logoUrl ? "rgba(255, 255, 255, 0.85)" : "transparent"),
 					borderColor: withFrame ? colors.border : "transparent",
-					shadowColor: colors.shadow,
+					shadowColor: isDark ? "#FFFFFF" : colors.shadow,
 					borderWidth: withFrame ? 1.5 : 0,
 				},
 			]}

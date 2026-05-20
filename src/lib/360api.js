@@ -2,7 +2,7 @@ export { getMe, loginUser, registerUser } from "./api/auth";
 
 export {
     blockUser, deleteUser,
-    getUserRoles, getUsers, unblockUser, updateUserRole
+    getUsers, unblockUser, updateUserRole
 } from "./api/users";
 
 export {

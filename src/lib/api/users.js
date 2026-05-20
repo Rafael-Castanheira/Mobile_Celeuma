@@ -32,7 +32,7 @@ export async function deleteUser(id, token) {
 	if (!res.ok) throw new Error(`Erro ao eliminar utilizador (${res.status}).`);
 }
 
-export async function getUserRoles(token) {
+async function getUserRoles(token) {
 	const res = await fetchWithTimeout(`${BASE_URL}/user/roles`, { headers: authHeaders(token) });
 	if (!res.ok) throw new Error(`Erro ao carregar roles (${res.status}).`);
 	const data = await res.json();

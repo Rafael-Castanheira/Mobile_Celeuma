@@ -26,7 +26,6 @@ export function buildViewerHtml(sourceUrl, pointTitle, pointDetail, colors, opti
   const uploadsBaseUrl = String(normalizedBaseUrl || inferredOrigin || "").replace(/\/+$/, "");
 
   const safeSourceAttr = escapeHtml(normalizedSourceUrl);
-  const safeSourceComponentAttr = escapeHtml(escapeAframeComponentValue(normalizedSourceUrl));
   const safeUploadsBaseUrl = escapeHtml(uploadsBaseUrl);
 
   const panoramaKind = inferPanoramaKind(normalizedSourceUrl);
@@ -59,6 +58,7 @@ export function buildViewerHtml(sourceUrl, pointTitle, pointDetail, colors, opti
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; background: ${colors.background}; overflow: hidden; font-family: sans-serif; }
+    a-scene { display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 
     .viewer-error {
       position: absolute; inset: 0; display: none;
@@ -106,6 +106,10 @@ export function buildViewerHtml(sourceUrl, pointTitle, pointDetail, colors, opti
         return encodeURI(absolute);
       }
     }
+
+    window.onerror = function(message, source, lineno, colno, error) {
+      sendMessage({ point360Error: true, message: 'JS Error: ' + message });
+    };
 
     function showError(message) {
       const errorNode = document.getElementById('viewer-error');
@@ -751,13 +755,13 @@ export function buildViewerHtml(sourceUrl, pointTitle, pointDetail, colors, opti
         const safeSrc = normalizeRuntimeMediaUrl(src);
 
         if (!safeSrc) {
-          return Promise.reject(new Error('Fonte do panorama não definida.'));
+          return Promise.reject(new Error('Fonte do panorama n\u00e3o definida.'));
         }
 
         if (safeKind === 'video') {
           const video = document.getElementById('panorama-video');
           if (!video) {
-            return Promise.reject(new Error('Elemento de vídeo do panorama não encontrado.'));
+            return Promise.reject(new Error('Elemento de v\u00eddeo do panorama n\u00e3o encontrado.'));
           }
           const THREE = window.THREE;
           const texture = new THREE.VideoTexture(video);
@@ -769,19 +773,54 @@ export function buildViewerHtml(sourceUrl, pointTitle, pointDetail, colors, opti
           return Promise.resolve(texture);
         }
 
-        return new Promise((resolve, reject) => {
-          this.textureLoader.load(
-            safeSrc,
-            (loaded) => {
-              const THREE = window.THREE;
-              loaded.colorSpace = THREE.SRGBColorSpace;
-              loaded.needsUpdate = true;
-              resolve(loaded);
-            },
-            undefined,
-            () => reject(new Error('Não foi possível carregar a imagem do panorama: ' + safeSrc))
-          );
-        });
+        // Carrega via fetch+blob para evitar problemas de CORS em WebView
+        var self = this;
+        return fetch(safeSrc)
+          .then(function (response) {
+            if (!response.ok) throw new Error('HTTP ' + response.status + ' ao carregar panorama: ' + safeSrc);
+            return response.blob();
+          })
+          .then(function (blob) {
+            var blobUrl = URL.createObjectURL(blob);
+            return new Promise(function (resolve, reject) {
+              var img = new Image();
+              img.onload = function () {
+                var THREE = window.THREE;
+
+                // Auto-resize para n\u00e3o crashar texturas maiores que o MAX_TEXTURE_SIZE
+                var renderer = self.el && self.el.sceneEl && self.el.sceneEl.renderer;
+                var maxTextureSize = (renderer && renderer.capabilities && renderer.capabilities.maxTextureSize) || 4096;
+                var texSource = img;
+
+                if (img.width > maxTextureSize || img.height > maxTextureSize) {
+                  try {
+                    var scale = maxTextureSize / Math.max(img.width, img.height);
+                    var newWidth = Math.floor(img.width * scale);
+                    var newHeight = Math.floor(img.height * scale);
+                    var canvas = document.createElement('canvas');
+                    canvas.width = newWidth;
+                    canvas.height = newHeight;
+                    var ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, newWidth, newHeight);
+                    texSource = canvas;
+                  } catch (e) {
+                    console.error('Falha ao redimensionar textura:', e);
+                  }
+                }
+
+                var texture = new THREE.Texture(texSource);
+                texture.colorSpace = THREE.SRGBColorSpace;
+                texture.needsUpdate = true;
+                URL.revokeObjectURL(blobUrl);
+                resolve(texture);
+              };
+              img.onerror = function () {
+                URL.revokeObjectURL(blobUrl);
+                reject(new Error('Falha ao decodificar imagem do panorama.'));
+              };
+              img.src = blobUrl;
+            });
+          });
       }
     });
 
@@ -1153,11 +1192,10 @@ export function buildViewerHtml(sourceUrl, pointTitle, pointDetail, colors, opti
     };
 
     // Handle panorama load errors + notify RN when ready.
-    document.addEventListener('DOMContentLoaded', () => {
-      registerWebLikeComponents();
+    registerWebLikeComponents();
 
+    document.addEventListener('DOMContentLoaded', () => {
       const scene = document.querySelector('a-scene');
-      const panoramaDome = document.getElementById('panorama-dome');
       let readySent = false;
 
       function notifyReady() {
@@ -1167,20 +1205,22 @@ export function buildViewerHtml(sourceUrl, pointTitle, pointDetail, colors, opti
       }
 
       if (scene) {
-        scene.addEventListener('loaded', notifyReady, { once: true });
+        if (scene.hasLoaded) {
+          notifyReady();
+        } else {
+          scene.addEventListener('loaded', notifyReady, { once: true });
+        }
       } else {
         notifyReady();
       }
 
-      if (panoramaDome) {
-        panoramaDome.addEventListener('panorama-dome-error', function (event) {
-          const detail = event && event.detail ? event.detail : { message: 'Não foi possível carregar a imagem 360.' };
-          const message = detail.message || 'Não foi possível carregar a imagem 360.';
-          try { console.error('Falha no panorama-dome:', detail); } catch (_e) {}
-          showError(message);
-          sendMessage({ point360Error: true, error: detail });
-        });
-      }
+      // Fallback: se a cena nunca emitir 'loaded' (raro), notificar ao fim de 5s
+      setTimeout(function () {
+        if (!readySent) {
+          notifyReady();
+        }
+      }, 5000);
+
 
       ensureHotspotEvents(scene);
     });
@@ -1192,28 +1232,42 @@ export function buildViewerHtml(sourceUrl, pointTitle, pointDetail, colors, opti
   <a-scene
     embedded
     vr-mode-ui="enabled: false"
-    renderer="logarithmicDepthBuffer: true"
+    device-orientation-permission-ui="enabled: false"
+    renderer="antialias: true; colorManagement: true;"
     shadow="type: pcfsoft"
     loading-screen="enabled: false"
   >
     <!-- Assets -->
-    <a-assets id="assets">
+    <a-assets id="assets" timeout="30000">
       ${panoramaVideoAsset}
     </a-assets>
 
     <a-camera
       position="0 0 0"
-      look-controls
+      look-controls="magicWindowTrackingEnabled: false"
       wasd-controls="enabled: false"
       raycaster="objects: .hotspot-interaction"
       cursor="rayOrigin: mouse"
     ></a-camera>
 
-    <!-- Panorama -->
-    <a-entity
-      id="panorama-dome"
-      panorama-dome="src: ${safeSourceComponentAttr}; kind: ${panoramaKind}; radius: ${domeRadius}; verticalOffset: ${domeVerticalOffset}; rotationX: ${domeRotationX}; rotationY: ${domeRotationY}; rotationZ: ${domeRotationZ}; mirrorX: ${domeMirrorX ? 'true' : 'false'}; mirrorY: ${domeMirrorY ? 'true' : 'false'}"
-    ></a-entity>
+    <!-- Panorama (usa a-sky nativo do A-Frame, tal como a versão web) -->
+    ${panoramaKind === 'image'
+      ? `<a-sky
+          src="${safeSourceAttr}"
+          radius="${domeRadius}"
+          position="0 ${domeVerticalOffset} 0"
+          rotation="${domeRotationX} ${domeRotationY} ${domeRotationZ}"
+          scale="${domeMirrorX ? -1 : 1} ${domeMirrorY ? -1 : 1} 1"
+        ></a-sky>`
+      : `<a-videosphere
+          src="#panorama-video"
+          radius="${domeRadius}"
+          position="0 ${domeVerticalOffset} 0"
+          rotation="${domeRotationX} ${domeRotationY} ${domeRotationZ}"
+          scale="${domeMirrorX ? -1 : 1} ${domeMirrorY ? -1 : 1} 1"
+        ></a-videosphere>`
+    }
+
 
     <!-- Overlays (imagem4p) -->
     <a-entity id="warp-overlays-container"></a-entity>
@@ -1264,8 +1318,4 @@ function stripWrappingQuotes(value) {
     return value.slice(1, -1).trim();
   }
   return value;
-}
-
-function escapeAframeComponentValue(value) {
-  return String(value ?? '').replace(/;/g, '%3B');
 }

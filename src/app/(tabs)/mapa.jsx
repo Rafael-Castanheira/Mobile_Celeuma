@@ -9,6 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useDialog } from "../../context/DialogContext";
 import { useAppTheme } from "../../context/ThemeContext";
 import { createPonto, getMapPoints, getPointCategories, registarVisualizacao } from "../../lib/360api";
+import { isAdminRole } from "../../lib/auth";
 
 import CreatePointModal from "../../features/mapa/components/CreatePointModal";
 import RoutesScreenModal from "../../features/mapa/components/RoutesScreenModal";
@@ -547,13 +548,15 @@ export default function MapaScreen() {
         <View style={[styles.crosshairDot, { borderColor: colors.primary }]} pointerEvents="none" />
 
         <View style={[styles.fabRow, { top: top + 8 }]}>
-          <TouchableOpacity
-            style={[styles.fabButton, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]}
-            onPress={openCreatePointModal}
-            activeOpacity={0.8}
-          >
-            <Feather name="plus" size={18} color={colors.primaryForeground} />
-          </TouchableOpacity>
+          {isAdminRole(user?.role) && (
+            <TouchableOpacity
+              style={[styles.fabButton, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]}
+              onPress={openCreatePointModal}
+              activeOpacity={0.8}
+            >
+              <Feather name="plus" size={18} color={colors.primaryForeground} />
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[styles.fabButton, { backgroundColor: colors.overlay, borderColor: colors.border }, isLayersMenuOpen && [styles.fabButtonActive, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]]}

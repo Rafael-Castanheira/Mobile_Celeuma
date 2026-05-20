@@ -23,7 +23,7 @@ export const BASE_URL = (() => {
 })();
 
 // Aumentado para 45s para suportar ligações móveis lentas / payloads maiores.
-export const REQUEST_TIMEOUT_MS = 45000;
+const REQUEST_TIMEOUT_MS = 45000;
 
 export async function fetchWithTimeout(input, init = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
 	let didTimeout = false;

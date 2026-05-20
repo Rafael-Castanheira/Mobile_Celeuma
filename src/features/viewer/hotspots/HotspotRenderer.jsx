@@ -9,6 +9,14 @@ export default function HotspotRenderer({ webViewRef, isWebViewReady }) {
     const { visibleHotspots } = useViewer();
     const lastInjectedStr = useRef('');
 
+    // Quando o WebView fica pronto (ou re-fica pronto após navegação),
+    // limpar a cache de dedup para forçar re-injeção dos hotspots.
+    useEffect(() => {
+        if (isWebViewReady) {
+            lastInjectedStr.current = '';
+        }
+    }, [isWebViewReady]);
+
     useEffect(() => {
         if (!webViewRef.current || !isWebViewReady) return;
 
