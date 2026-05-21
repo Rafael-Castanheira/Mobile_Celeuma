@@ -16,13 +16,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
 import { useDialog } from "../../context/DialogContext";
 import { useAppTheme } from "../../context/ThemeContext";
-import { getMapPoints } from "../../lib/360api";
-import { getFavoritePointIds, toggleFavoritePointId } from "../../lib/preferences";
+import { getMapPoints, getMyFavorites, addFavoritePoint, removeFavoritePoint } from "../../lib/360api";
 
 export default function FavoritosScreen() {
 	const router = useRouter();
 	const { top, bottom } = useSafeAreaInsets();
-	const { user } = useAuth();
+	const { user, token } = useAuth();
 	const { colors } = useAppTheme();
 	const { showError } = useDialog();
 	const [points, setPoints] = useState([]);
@@ -32,8 +31,6 @@ export default function FavoritosScreen() {
 	const [savingPointId, setSavingPointId] = useState(null);
 	const [viewMode, setViewMode] = useState("favorites");
 	const [search, setSearch] = useState("");
-
-	const userKey = user?.id ?? user?.email ?? "anonymous";
 
 	const load = useCallback(async (isRefresh = false) => {
 		if (isRefresh) {
@@ -45,7 +42,7 @@ export default function FavoritosScreen() {
 		try {
 			const [loadedPoints, loadedFavorites] = await Promise.all([
 				getMapPoints(),
-				getFavoritePointIds(userKey),
+				getMyFavorites(token).then(f => f.pontos || []),
 			]);
 
 			setPoints(loadedPoints);
@@ -67,8 +64,14 @@ export default function FavoritosScreen() {
 	async function handleToggleFavorite(pointId) {
 		setSavingPointId(pointId);
 		try {
-			const updated = await toggleFavoritePointId(userKey, pointId);
-			setFavoriteIds(updated);
+			const isFavorite = favoriteIds.includes(pointId);
+			if (isFavorite) {
+				await removeFavoritePoint(pointId, token);
+			} else {
+				await addFavoritePoint(pointId, token);
+			}
+			const favs = await getMyFavorites(token);
+			setFavoriteIds(favs.pontos || []);
 		} catch {
 			showError("Não foi possível atualizar os favoritos.");
 		} finally {

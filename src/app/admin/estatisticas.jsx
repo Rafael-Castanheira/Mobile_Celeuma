@@ -155,14 +155,14 @@ const styles = StyleSheet.create({
 	backBtn: { padding: 6 },
 	title: { color: "#f8fafc", fontSize: 18, fontWeight: "700" },
 	errorText: { textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
-	grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+	grid: { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "space-between" },
 	statCard: {
 		backgroundColor: "#1a0a0a",
 		borderRadius: 12,
 		padding: 16,
 		borderWidth: 1,
 		borderColor: "rgba(255,255,255,0.07)",
-		width: "47%",
+		width: "48%",
 		alignItems: "flex-start",
 	},
 	iconWrap: {

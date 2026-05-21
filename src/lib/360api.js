@@ -13,8 +13,12 @@ export {
 export { getPointMobileData } from "./api/hotspots";
 
 export {
-    createTrajeto, deleteRota, getMapRoutes, updateTrajetoDescription
+    createTrajeto, deleteRota, getMapRoutes, updateTrajetoDescription, getHighlightedRoute, highlightRoute
 } from "./api/routes";
+
+export {
+    getMyFavorites, addFavoritePoint, removeFavoritePoint, addFavoriteTrajeto, removeFavoriteTrajeto
+} from "./api/favorites";
 
 export { getEstatisticasResumo, registarVisualizacao } from "./api/stats";
 

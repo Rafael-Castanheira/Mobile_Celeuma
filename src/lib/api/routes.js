@@ -81,6 +81,31 @@ export async function getMapRoutes(signal) {
 	return trajetos.map((trajeto) => normalizeMapRoute(trajeto)).filter((route) => route !== null);
 }
 
+export async function getHighlightedRoute(signal) {
+	const response = await fetchWithTimeout(`${BASE_URL}/trajeto/highlighted`, {
+		method: "GET",
+		headers: {
+			Accept: "application/json",
+		},
+		signal,
+	});
+
+	if (response.status === 404) {
+		return null;
+	}
+
+	if (!response.ok) {
+		throw new Error(`Falha ao carregar trajeto da semana (${response.status}).`);
+	}
+
+	const payload = await response.json();
+	if (payload?.trajeto) {
+		return normalizeMapRoute(payload.trajeto);
+	}
+	
+	return null;
+}
+
 export async function createTrajeto(fields, token) {
 	const res = await fetchWithTimeout(`${BASE_URL}/trajeto/create`, {
 		method: "POST",
@@ -105,4 +130,13 @@ export async function deleteRota(id, token) {
 		headers: authHeaders(token),
 	});
 	if (!res.ok) throw new Error(`Erro ao eliminar rota (${res.status}).`);
+}
+
+export async function highlightRoute(id, highlighted = true, token) {
+	const res = await fetchWithTimeout(`${BASE_URL}/trajeto/highlight/${id}`, {
+		method: "PATCH",
+		headers: authHeaders(token),
+		body: JSON.stringify({ highlighted }),
+	});
+	if (!res.ok) throw new Error(`Erro ao destacar rota (${res.status}).`);
 }

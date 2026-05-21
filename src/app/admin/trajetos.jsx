@@ -22,9 +22,10 @@ import {
     getMapPoints,
     getMapRoutes,
     updateTrajetoDescription,
+    getHighlightedRoute,
+    highlightRoute,
 } from "../../lib/360api";
 import { isAdminRole } from "../../lib/auth";
-import { getFeaturedRouteId as getStoredFeaturedRouteId, setFeaturedRouteId as setStoredFeaturedRouteId } from "../../lib/preferences";
 
 export default function TrajetosScreen() {
 	const router = useRouter();
@@ -54,14 +55,14 @@ export default function TrajetosScreen() {
 		setLoading(true);
 		setError(null);
 		try {
-			const [r, p, storedFeaturedRouteId] = await Promise.all([
+			const [r, p, featuredRoute] = await Promise.all([
 				getMapRoutes(),
 				getMapPoints(),
-				getStoredFeaturedRouteId(),
+				getHighlightedRoute(),
 			]);
 			setRoutes(r);
 			setPoints(p);
-			setFeaturedRouteId(r.some((route) => route.id === storedFeaturedRouteId) ? storedFeaturedRouteId : null);
+			setFeaturedRouteId(featuredRoute?.id ?? null);
 		} catch (e) {
 			setError(e instanceof Error ? e.message : "Erro desconhecido.");
 		} finally {
@@ -172,7 +173,7 @@ export default function TrajetosScreen() {
 		}
 
 		try {
-			await setStoredFeaturedRouteId(route.id);
+			await highlightRoute(route.id, true, token);
 			setFeaturedRouteId(route.id);
 			showSuccess(`A rota \"${route.name}\" foi definida em destaque.`);
 		} catch {

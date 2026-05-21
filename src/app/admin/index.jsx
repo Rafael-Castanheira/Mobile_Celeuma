@@ -7,9 +7,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrandLogo from "../../components/BrandLogo";
 import { useAuth } from "../../context/AuthContext";
 import { useAppTheme } from "../../context/ThemeContext";
-import { getMapRoutes } from "../../lib/360api";
+import { getMapRoutes, getHighlightedRoute } from "../../lib/360api";
 import { isAdminRole } from "../../lib/auth";
-import { getFeaturedRouteId } from "../../lib/preferences";
 
 const ADMIN_QUICK_ACTIONS = [
 	{
@@ -81,14 +80,14 @@ export default function AdminDashboard() {
 				if (canManageContent) return;
 
 				try {
-					const [featuredRouteId, routes] = await Promise.all([
-						getFeaturedRouteId(),
+					const [highlightedRoute, routes] = await Promise.all([
+						getHighlightedRoute(),
 						getMapRoutes(),
 					]);
 
 					if (!alive) return;
 
-					const featuredRoute = routes.find((route) => route.id === featuredRouteId) ?? null;
+					const featuredRoute = routes.find((route) => route.id === highlightedRoute?.id) ?? null;
 					setFeaturedRouteName(featuredRoute?.name ?? null);
 				} catch {
 					if (alive) {

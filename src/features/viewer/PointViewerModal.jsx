@@ -209,6 +209,12 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
                         mixedContentMode="always"
                         mediaPlaybackRequiresUserAction={false}
                         allowsInlineMediaPlayback
+                        bounces={false}
+                        scrollEnabled={false}
+                        showsHorizontalScrollIndicator={false}
+                        showsVerticalScrollIndicator={false}
+                        contentInsetAdjustmentBehavior="never"
+                        automaticallyAdjustContentInsets={false}
                         onError={() => {
                             if (hasShownError) return;
                             setHasShownError(true);

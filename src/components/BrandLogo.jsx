@@ -17,7 +17,9 @@ export default function BrandLogo({ size = 88, iconSize = 40, withFrame = true }
 						? (isDark ? "#F8F9FA" : colors.card) 
 						: (isDark && logoUrl ? "rgba(255, 255, 255, 0.85)" : "transparent"),
 					borderColor: withFrame ? colors.border : "transparent",
-					shadowColor: isDark ? "#FFFFFF" : colors.shadow,
+					shadowColor: isDark ? "rgba(255, 255, 255, 0.6)" : colors.shadow,
+					shadowOpacity: isDark ? 0.15 : 0.28,
+					shadowRadius: isDark ? 10 : 16,
 					borderWidth: withFrame ? 1.5 : 0,
 				},
 			]}

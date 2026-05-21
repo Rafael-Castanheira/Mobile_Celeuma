@@ -33,7 +33,18 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
       const longitude = asFiniteNumber(p?.longitude);
       if (latitude === null || longitude === null) return "";
 
-      const popupHtml = `<div style='min-width:170px'><strong style='display:block;margin-bottom:4px'>${escapeHtml(p?.title)}</strong><span style='display:block;margin-bottom:8px'>${escapeHtml(p?.detail)}</span><a href='#' class='point-open-360' data-marker-index='${i}'>Abrir visao 360</a></div>`;
+      const imageUrl = p?.imageUrl || p?.image_url;
+      const imgHtml = imageUrl ? `<div style='width:100%;height:100px;border-radius:8px;overflow:hidden;margin-bottom:10px;background-color:${theme.softOverlay};background-image:url("${escapeHtml(imageUrl)}");background-size:cover;background-position:center;'></div>` : "";
+      
+      const popupHtml = `<div style='min-width:180px;display:flex;flex-direction:column;'>
+        ${imgHtml}
+        <strong style='display:block;margin-bottom:4px;font-size:14px;color:${theme.foreground}'>${escapeHtml(p?.title)}</strong>
+        <span style='display:block;margin-bottom:12px;font-size:12px;color:${theme.mutedForeground}'>${escapeHtml(p?.detail)}</span>
+        <button class='point-open-360' data-marker-index='${i}' style='background-color:${theme.primary};color:${theme.primaryForeground};border:none;border-radius:6px;padding:8px 12px;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;width:100%;'>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          Visão 360º VR
+        </button>
+      </div>`;
 
       return `L.marker([${latitude}, ${longitude}], { icon: markerIcon })
           .addTo(map)

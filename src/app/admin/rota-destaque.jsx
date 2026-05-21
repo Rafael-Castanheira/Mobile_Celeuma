@@ -6,8 +6,7 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useDialog } from "../../context/DialogContext";
 import { useAppTheme } from "../../context/ThemeContext";
-import { getMapPoints, getMapRoutes } from "../../lib/360api";
-import { getFeaturedRouteId } from "../../lib/preferences";
+import { getMapPoints, getMapRoutes, getHighlightedRoute } from "../../lib/360api";
 
 export default function RotaDestaqueScreen() {
 	const router = useRouter();
@@ -27,19 +26,19 @@ export default function RotaDestaqueScreen() {
 		}
 
 		try {
-			const [routes, points, featuredRouteId] = await Promise.all([
+			const [routes, points, highlightedRoute] = await Promise.all([
 				getMapRoutes(),
 				getMapPoints(),
-				getFeaturedRouteId(),
+				getHighlightedRoute(),
 			]);
 
-			if (featuredRouteId === null) {
+			if (!highlightedRoute) {
 				setFeaturedRoute(null);
 				setPointNames([]);
 				return;
 			}
 
-			const route = routes.find((item) => item.id === featuredRouteId) ?? null;
+			const route = routes.find((item) => item.id === highlightedRoute.id) ?? null;
 			setFeaturedRoute(route);
 
 			if (!route) {
