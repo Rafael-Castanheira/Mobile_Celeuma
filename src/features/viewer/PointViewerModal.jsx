@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Animated,
+    Image,
     Modal,
     ScrollView,
     Text,
@@ -279,6 +280,37 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
                     </TouchableOpacity>
                 </View>
 
+                {/* ── TOP-RIGHT CONTROLS (VR) ── */}
+                <View
+                    style={{
+                        position: 'absolute',
+                        top: top + 8,
+                        right: 12,
+                        alignItems: 'center',
+                        gap: 8,
+                    }}
+                >
+                    <TouchableOpacity
+                        style={btnStyle()}
+                        onPress={() => {
+                            if (webViewRef.current) {
+                                webViewRef.current.injectJavaScript(`
+                                    (function() {
+                                        var scene = document.querySelector('a-scene');
+                                        if (scene && scene.enterVR) {
+                                            scene.enterVR();
+                                        }
+                                        return true;
+                                    })();
+                                `);
+                            }
+                        }}
+                        activeOpacity={0.8}
+                    >
+                        <Feather name="maximize" size={18} color={colors.foreground} />
+                    </TouchableOpacity>
+                </View>
+
                 {/* ── POINT NAME PILL ── */}
                 {!!pointMetadata?.name && (
                     <View
@@ -392,7 +424,6 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
                         style={{
                             flexDirection: 'row',
                             alignItems: 'flex-start',
-                            justifyContent: 'space-between',
                             paddingHorizontal: 16,
                             paddingTop: 8,
                             paddingBottom: 12,
@@ -400,7 +431,13 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
                             borderColor: colors.border,
                         }}
                     >
-                        <View style={{ flex: 1, marginRight: 8 }}>
+                        {!!sourceUrl && (
+                            <Image 
+                                source={{ uri: sourceUrl }} 
+                                style={{ width: 48, height: 48, borderRadius: 8, marginRight: 12, backgroundColor: colors.overlay }}
+                            />
+                        )}
+                        <View style={{ flex: 1, marginRight: 8, justifyContent: 'center' }}>
                             <Text
                                 style={{
                                     color: colors.foreground,
@@ -459,7 +496,7 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
                         style={{ flex: 1 }}
                         contentContainerStyle={{
                             padding: 16,
-                            paddingBottom: safeBottom + 20,
+                            paddingBottom: Math.max(safeBottom, 12),
                             gap: 14,
                         }}
                         showsVerticalScrollIndicator={false}
