@@ -1,4 +1,4 @@
-export { getMe, loginUser, registerUser } from "./api/auth";
+export { getMe, loginUser, recoverPassword, registerUser } from "./api/auth";
 
 export {
     blockUser, deleteUser,
@@ -13,12 +13,10 @@ export {
 export { getPointMobileData } from "./api/hotspots";
 
 export {
-    createTrajeto, deleteRota, getMapRoutes, updateTrajetoDescription, getHighlightedRoute, highlightRoute
+    createTrajeto, deleteRota, getHighlightedRoute, getMapRoutes, highlightRoute, updateTrajetoDescription
 } from "./api/routes";
 
-export {
-    getMyFavorites, addFavoritePoint, removeFavoritePoint, addFavoriteTrajeto, removeFavoriteTrajeto
-} from "./api/favorites";
+export { addFavoritePoint, addFavoriteTrajeto, getMyFavorites, removeFavoritePoint, removeFavoriteTrajeto } from "./api/favorites";
 
 export { getEstatisticasResumo, registarVisualizacao } from "./api/stats";
 

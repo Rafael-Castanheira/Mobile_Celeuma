@@ -1,6 +1,6 @@
 import Constants from "expo-constants";
 
-const DEFAULT_BASE_URL = "http://192.168.0.125:3000";
+const DEFAULT_BASE_URL = "https://galeria360-backend.onrender.com";
 
 function normalizeBaseUrl(value) {
 	const raw = String(value || "").trim();

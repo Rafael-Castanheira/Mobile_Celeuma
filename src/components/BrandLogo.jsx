@@ -1,6 +1,9 @@
-import { Feather } from "@expo/vector-icons";
-import { Image, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Image } from "expo-image";
 import { useAppTheme } from "../context/ThemeContext";
+
+const celeumaLight = require("../../assets/images/celeumaBlack.svg");
+const celeumaDark = require("../../assets/images/celeuma.svg");
 
 export default function BrandLogo({ size = 88, iconSize = 40, withFrame = true }) {
 	const { colors, logoUrl, isDark } = useAppTheme();
@@ -14,8 +17,8 @@ export default function BrandLogo({ size = 88, iconSize = 40, withFrame = true }
 					height: size,
 					borderRadius: size / 2,
 					backgroundColor: withFrame 
-						? (isDark ? "#F8F9FA" : colors.card) 
-						: (isDark && logoUrl ? "rgba(255, 255, 255, 0.85)" : "transparent"),
+						? colors.card 
+						: "transparent",
 					borderColor: withFrame ? colors.border : "transparent",
 					shadowColor: isDark ? "rgba(255, 255, 255, 0.6)" : colors.shadow,
 					shadowOpacity: isDark ? 0.15 : 0.28,
@@ -28,10 +31,14 @@ export default function BrandLogo({ size = 88, iconSize = 40, withFrame = true }
 				<Image
 					source={{ uri: logoUrl }}
 					style={{ width: size * 0.66, height: size * 0.66 }}
-					resizeMode="contain"
+					contentFit="contain"
 				/>
 			) : (
-				<Feather name="aperture" size={iconSize} color={colors.primary} />
+				<Image 
+					source={isDark ? celeumaDark : celeumaLight} 
+					style={{ width: size * 0.66, height: size * 0.66 }}
+					contentFit="contain"
+				/>
 			)}
 		</View>
 	);

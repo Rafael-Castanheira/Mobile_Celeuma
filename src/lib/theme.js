@@ -96,12 +96,12 @@ function parseHslToken(value) {
 	};
 }
 
-function isThemeColorValue(value) {
+export function isThemeColorValue(value) {
 	const trimmed = value.trim();
 	return /^(#|rgb\(|rgba\(|hsl\(|hsla\()/i.test(trimmed) || parseHslToken(trimmed) !== null;
 }
 
-function normalizeThemeColor(value) {
+export function normalizeThemeColor(value) {
 	const trimmed = value.trim();
 	if (/^(#|rgb\(|rgba\()/i.test(trimmed)) return trimmed;
 

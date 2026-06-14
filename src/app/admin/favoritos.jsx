@@ -53,7 +53,7 @@ export default function FavoritosScreen() {
 			setLoading(false);
 			setRefreshing(false);
 		}
-	}, [showError, userKey]);
+	}, [showError, token]);
 
 	useFocusEffect(
 		useCallback(() => {

@@ -2,21 +2,22 @@ import { Feather } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrandLogo from "../components/BrandLogo";
 import { useAuth } from "../context/AuthContext";
 import { useAppTheme } from "../context/ThemeContext";
-import { getLandingContent, loginUser } from "../lib/360api";
+import { getLandingContent, loginUser, recoverPassword } from "../lib/360api";
 import { getAuthenticatedHomeRoute, isAdminRole } from "../lib/auth";
 
 export default function Login() {
@@ -64,6 +65,36 @@ export default function Login() {
     }
   }
 
+  function handleForgotPassword() {
+    if (!email.trim()) {
+      setError("Introduza o seu email para recuperar a password.");
+      return;
+    }
+
+    Alert.alert(
+      "Recuperar Password",
+      `Pretende enviar um email de recuperação para ${email.trim()}?`,
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Enviar",
+          onPress: async () => {
+            setLoading(true);
+            setError(null);
+            try {
+              await recoverPassword(email.trim());
+              Alert.alert("Sucesso", "Email de recuperação enviado com sucesso. Verifique a sua caixa de entrada.");
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Erro desconhecido ao recuperar password.");
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   if (isLoadingAuth) {
     return (
       <View style={[styles.root, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
@@ -77,7 +108,7 @@ export default function Login() {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.muted, paddingTop: top, paddingBottom: bottom + 12 }]}> 
+    <View style={[styles.screen, { backgroundColor: colors.muted, paddingTop: top, paddingBottom: bottom + 12 }]}>
       <KeyboardAvoidingView
         style={styles.keyboardContainer}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -87,90 +118,90 @@ export default function Login() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.card, { backgroundColor: colors.background, borderColor: colors.border }]}> 
+          <View style={[styles.card, { backgroundColor: colors.background, borderColor: colors.border }]}>
             <View style={styles.header}>
               <BrandLogo size={74} iconSize={34} withFrame />
               <Text style={[styles.formTitle, { color: colors.foreground }]}>Entrar</Text>
-              <Text style={[styles.heroDescription, { color: colors.mutedForeground }]}> 
+              <Text style={[styles.heroDescription, { color: colors.mutedForeground }]}>
                 {landing?.description ?? activePreset?.description ?? "Acede à tua conta para continuar."}
               </Text>
             </View>
 
-        <View style={styles.form}>
-          <View style={styles.inputBlock}>
-            <Text style={[styles.label, { color: colors.foreground }]}>Email</Text>
+            <View style={styles.form}>
+              <View style={styles.inputBlock}>
+                <Text style={[styles.label, { color: colors.foreground }]}>Email</Text>
 
-        {/* Mensagem de erro */}
-        {error && (
-          <View style={[styles.errorBox, { backgroundColor: colors.accentSoft, borderColor: colors.destructive }]}> 
-            <Feather name="alert-circle" size={15} color={colors.destructive} style={{ marginRight: 8 }} />
-            <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
-          </View>
-        )}
+                {/* Mensagem de erro */}
+                {error && (
+                  <View style={[styles.errorBox, { backgroundColor: colors.accentSoft, borderColor: colors.destructive }]}>
+                    <Feather name="alert-circle" size={15} color={colors.destructive} style={{ marginRight: 8 }} />
+                    <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
+                  </View>
+                )}
 
-        <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Feather name="mail" size={18} color={colors.iconMuted} style={styles.inputIcon} />
-          <TextInput
-            style={[styles.input, { color: colors.foreground }]}
-            placeholder="E-mail"
-            placeholderTextColor={colors.placeholder}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            returnKeyType="next"
-          />
-        </View>
-          </View>
+                <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Feather name="mail" size={18} color={colors.iconMuted} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { color: colors.foreground }]}
+                    placeholder="E-mail"
+                    placeholderTextColor={colors.placeholder}
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="email"
+                    returnKeyType="next"
+                  />
+                </View>
+              </View>
 
-        <View style={styles.inputBlock}>
-          <View style={styles.passwordLabelRow}>
-            <Text style={[styles.label, { color: colors.foreground }]}>Password</Text>
-            <Pressable style={styles.forgotWrapper}>
-              <Text style={[styles.forgotText, { color: colors.primary }]}>Esqueceu-se da password?</Text>
-            </Pressable>
-          </View>
-        <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Feather name="lock" size={18} color={colors.iconMuted} style={styles.inputIcon} />
-          <TextInput
-            style={[styles.input, { flex: 1, color: colors.foreground }]}
-            placeholder="Senha"
-            placeholderTextColor={colors.placeholder}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
-            autoComplete="password"
-            returnKeyType="done"
-            onSubmitEditing={handleLogin}
-          />
-          <Pressable onPress={() => setShowPassword((v) => !v)} style={styles.eyeBtn}>
-            <Feather
-              name={showPassword ? "eye-off" : "eye"}
-              size={18}
-              color={colors.iconMuted}
-            />
-          </Pressable>
-        </View>
-        </View>
+              <View style={styles.inputBlock}>
+                <View style={styles.passwordLabelRow}>
+                  <Text style={[styles.label, { color: colors.foreground }]}>Password</Text>
+                  <Pressable style={styles.forgotWrapper} onPress={handleForgotPassword} disabled={loading}>
+                    <Text style={[styles.forgotText, { color: colors.primary, opacity: loading ? 0.5 : 1 }]}>Esqueceu-se da password?</Text>
+                  </Pressable>
+                </View>
+                <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Feather name="lock" size={18} color={colors.iconMuted} style={styles.inputIcon} />
+                  <TextInput
+                    style={[styles.input, { flex: 1, color: colors.foreground }]}
+                    placeholder="Senha"
+                    placeholderTextColor={colors.placeholder}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    autoComplete="password"
+                    returnKeyType="done"
+                    onSubmitEditing={handleLogin}
+                  />
+                  <Pressable onPress={() => setShowPassword((v) => !v)} style={styles.eyeBtn}>
+                    <Feather
+                      name={showPassword ? "eye-off" : "eye"}
+                      size={18}
+                      color={colors.iconMuted}
+                    />
+                  </Pressable>
+                </View>
+              </View>
 
-        <Pressable
-          style={({ pressed }) => [
-            styles.loginBtn,
-            { backgroundColor: loading ? colors.buttonDisabled : colors.primary, shadowColor: colors.shadow },
-            pressed && styles.loginBtnPressed,
-            loading && styles.loginBtnDisabled,
-          ]}
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color={colors.primaryForeground} />
-          ) : (
-            <Text style={[styles.loginBtnText, { color: colors.primaryForeground }]}>Entrar</Text>
-          )}
-        </Pressable>
-        </View>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.loginBtn,
+                  { backgroundColor: loading ? colors.buttonDisabled : colors.primary, shadowColor: colors.shadow },
+                  pressed && styles.loginBtnPressed,
+                  loading && styles.loginBtnDisabled,
+                ]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color={colors.primaryForeground} />
+                ) : (
+                  <Text style={[styles.loginBtnText, { color: colors.primaryForeground }]}>Entrar</Text>
+                )}
+              </Pressable>
+            </View>
 
             <View style={styles.footer}>
               <Text style={[styles.footerText, { color: colors.mutedForeground }]}>Ainda não está registado? </Text>

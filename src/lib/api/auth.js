@@ -90,3 +90,25 @@ export async function getMe(token) {
 		role: u.role ?? "User",
 	};
 }
+
+export async function recoverPassword(email) {
+	const response = await fetchWithTimeout(`${BASE_URL}/password/recuperarPassword`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json", Accept: "application/json" },
+		body: JSON.stringify({ email }),
+	});
+
+	if (!response.ok) {
+		let message = "Erro ao enviar pedido de recuperação. Tente novamente.";
+		try {
+			const data = await response.json();
+			if (typeof data?.message === "string" && data.message) message = data.message;
+		} catch {
+			// ignore
+		}
+		if (response.status === 404) message = "Utilizador não encontrado.";
+		throw new Error(message);
+	}
+
+	return true;
+}
