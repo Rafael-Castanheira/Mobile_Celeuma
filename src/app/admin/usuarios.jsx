@@ -20,6 +20,7 @@ import {
     unblockUser,
     updateUserRole,
 } from "../../lib/360api";
+import { AdminHeader } from "../../components/admin/AdminUI";
 
 const ROLES = ["Admin", "User"];
 
@@ -157,16 +158,11 @@ export default function UsuariosScreen() {
 
 	return (
 		<View style={[styles.container, { backgroundColor: colors.background, paddingTop: top }]}>
-			{/* Header */}
-			<View style={[styles.header, { borderBottomColor: colors.border }]}>
-				<Pressable onPress={() => router.back()} style={styles.backBtn}>
-					<Feather name="arrow-left" size={20} color={colors.foreground} />
-				</Pressable>
-				<Text style={[styles.title, { color: colors.foreground }]}>Utilizadores</Text>
-				<Pressable onPress={load} style={styles.backBtn}>
-					<Feather name="refresh-cw" size={18} color={colors.foreground} />
-				</Pressable>
-			</View>
+			<AdminHeader 
+				title="Utilizadores" 
+				rightIcon="refresh-cw" 
+				onRightPress={load} 
+			/>
 
 			{loading && <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />}
 			{!loading && error && (
@@ -187,17 +183,6 @@ export default function UsuariosScreen() {
 
 const styles = StyleSheet.create({
 	container: { flex: 1, backgroundColor: "#0d0000" },
-	header: {
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-between",
-		paddingHorizontal: 16,
-		paddingVertical: 14,
-		borderBottomWidth: 1,
-		borderBottomColor: "rgba(255,255,255,0.06)",
-	},
-	backBtn: { padding: 6 },
-	title: { color: "#f8fafc", fontSize: 18, fontWeight: "700" },
 	errorText: { textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
 	card: {
 		backgroundColor: "#1a0a0a",

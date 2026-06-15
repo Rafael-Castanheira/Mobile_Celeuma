@@ -26,6 +26,8 @@ import {
 
 import { ViewerProvider } from "../../context/ViewerContext";
 import PointViewerModal from "../../features/viewer/PointViewerModal";
+import MapBottomPanel from "../../features/mapa/components/MapBottomPanel";
+import MapFloatingControls from "../../features/mapa/components/MapFloatingControls";
 
 export default function MapaScreen() {
   const tabBarHeight = useBottomTabBarHeight();
@@ -547,205 +549,45 @@ export default function MapaScreen() {
 
         <View style={[styles.crosshairDot, { borderColor: colors.primary }]} pointerEvents="none" />
 
-        <View style={[styles.fabRow, { top: top + 8 }]}>
-          {isAdminRole(user?.role) && (
-            <TouchableOpacity
-              style={[styles.fabButton, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]}
-              onPress={openCreatePointModal}
-              activeOpacity={0.8}
-            >
-              <Feather name="plus" size={18} color={colors.primaryForeground} />
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={[styles.fabButton, { backgroundColor: colors.overlay, borderColor: colors.border }, isLayersMenuOpen && [styles.fabButtonActive, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]]}
-            onPress={() => {
-              setIsLayersMenuOpen((prev) => !prev);
-              setIsRoutesMenuOpen(false);
-            }}
-            activeOpacity={0.8}
-          >
-            <Feather name="layers" size={18} color={colors.foreground} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.fabButton, { backgroundColor: colors.overlay, borderColor: colors.border }, isRoutesMenuOpen && [styles.fabButtonActive, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]]}
-            onPress={() => {
-              setIsRoutesMenuOpen((prev) => !prev);
-              setIsLayersMenuOpen(false);
-            }}
-            activeOpacity={0.8}
-          >
-            <Feather name="sliders" size={18} color={colors.foreground} />
-          </TouchableOpacity>
-
-          {routeList.length > 0 && (
-            <TouchableOpacity
-              style={[styles.routesCountFab, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]}
-              onPress={() => {
-                setIsLayersMenuOpen(false);
-                setIsRoutesMenuOpen(false);
-                setIsRoutesScreenOpen(true);
-              }}
-              activeOpacity={0.8}
-            >
-              <Feather name="list" size={16} color={colors.primaryForeground} />
-              <Text style={[styles.routesCountFabText, { color: colors.primaryForeground }]}>{routeList.length}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {isLayersMenuOpen && (
-          <View style={[styles.floatingPanel, { top: top + 56, backgroundColor: colors.overlay, borderColor: colors.border }]}> 
-            <Text style={[styles.floatingPanelTitle, { color: colors.mutedForeground }]}>Visão do mapa</Text>
-
-            <TouchableOpacity
-              style={[styles.layerOption, { backgroundColor: colors.card }, mapViewMode === "satellite" && [styles.layerOptionActive, { backgroundColor: colors.primary }]]}
-              onPress={() => setBaseLayer("satellite")}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.layerOptionText, { color: mapViewMode === "satellite" ? colors.primaryForeground : colors.foreground }]}>Satélite</Text>
-              {mapViewMode === "satellite" && <Feather name="check" size={16} color={colors.primaryForeground} />}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.layerOption, { backgroundColor: colors.card }, mapViewMode === "topographic" && [styles.layerOptionActive, { backgroundColor: colors.primary }]]}
-              onPress={() => setBaseLayer("topographic")}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.layerOptionText, { color: mapViewMode === "topographic" ? colors.primaryForeground : colors.foreground }]}>Topográfico</Text>
-              {mapViewMode === "topographic" && <Feather name="check" size={16} color={colors.primaryForeground} />}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.layerOption, { backgroundColor: colors.card }, mapViewMode === "streets" && [styles.layerOptionActive, { backgroundColor: colors.primary }]]}
-              onPress={() => setBaseLayer("streets")}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.layerOptionText, { color: mapViewMode === "streets" ? colors.primaryForeground : colors.foreground }]}>Ruas</Text>
-              {mapViewMode === "streets" && <Feather name="check" size={16} color={colors.primaryForeground} />}
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {isRoutesMenuOpen && (
-          <View style={[styles.floatingPanel, { top: top + 56, backgroundColor: colors.overlay, borderColor: colors.border }]}> 
-            <Text style={[styles.floatingPanelTitle, { color: colors.mutedForeground }]}>Trajetos</Text>
-
-            <View style={[styles.switchRow, { backgroundColor: colors.card }]}> 
-              <Text style={[styles.toggleLabel, { color: colors.foreground }]}>Mostrar trajetos</Text>
-              <Switch
-                value={showRoutes}
-                onValueChange={toggleRoutes}
-                trackColor={{ false: colors.muted, true: colors.primary }}
-                thumbColor={colors.primaryForeground}
-                ios_backgroundColor={colors.muted}
-                style={{ transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }] }}
-              />
-            </View>
-
-          </View>
-        )}
+        <MapFloatingControls
+          colors={colors}
+          top={top}
+          isAdmin={isAdminRole(user?.role)}
+          openCreatePointModal={openCreatePointModal}
+          isLayersMenuOpen={isLayersMenuOpen}
+          setIsLayersMenuOpen={setIsLayersMenuOpen}
+          isRoutesMenuOpen={isRoutesMenuOpen}
+          setIsRoutesMenuOpen={setIsRoutesMenuOpen}
+          routeList={routeList}
+          setIsRoutesScreenOpen={setIsRoutesScreenOpen}
+          mapViewMode={mapViewMode}
+          setBaseLayer={setBaseLayer}
+          showRoutes={showRoutes}
+          toggleRoutes={toggleRoutes}
+        />
       </View>
 
-      <View style={{ flex: 1, position: 'relative', paddingBottom: tabBarHeight }}>
-        <View style={[styles.listContainer, { backgroundColor: colors.background }]}> 
-          <View style={[styles.bottomTabs, { backgroundColor: colors.muted }]}> 
-            <TouchableOpacity
-              style={[styles.bottomTab, bottomTab === 'points' && [styles.bottomTabActive, { backgroundColor: colors.primary }]]}
-              onPress={() => setBottomTab('points')}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.bottomTabText, { color: colors.mutedForeground }, bottomTab === 'points' && [styles.bottomTabTextActive, { color: colors.primaryForeground }]]}>Pontos</Text>
-              {points.length > 0 && (
-                <View style={[styles.tabBadge, { backgroundColor: bottomTab === 'points' ? colors.softOverlay : colors.accentSoft }]}>
-                  <Text style={[styles.tabBadgeText, { color: bottomTab === 'points' ? colors.primaryForeground : colors.foreground }]}>{points.length}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.bottomTab, bottomTab === 'routes' && [styles.bottomTabActive, { backgroundColor: colors.primary }]]}
-              onPress={() => setBottomTab('routes')}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.bottomTabText, { color: colors.mutedForeground }, bottomTab === 'routes' && [styles.bottomTabTextActive, { color: colors.primaryForeground }]]}>Trajetos</Text>
-              {resolvedRoutes.length > 0 && (
-                <View style={[styles.tabBadge, { backgroundColor: bottomTab === 'routes' ? colors.softOverlay : colors.accentSoft }]}>
-                  <Text style={[styles.tabBadgeText, { color: bottomTab === 'routes' ? colors.primaryForeground : colors.foreground }]}>{resolvedRoutes.length}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          </View>
-          {(isLoadingPoints || isLoadingRoutes) && <Text style={[styles.listStatus, { color: colors.mutedForeground }]}>A carregar pontos e trajetos...</Text>}
-          {pointsError && <Text style={[styles.listStatus, { color: colors.destructive }]}>{pointsError}</Text>}
-          {routesError && !pointsError && <Text style={[styles.listStatus, { color: colors.destructive }]}>{routesError}</Text>}
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {bottomTab === 'points' && (
-              <>
-                {!isLoadingPoints && !pointsError && points.length === 0 && (
-                  <Text style={[styles.listStatus, { color: colors.mutedForeground }]}>Sem pontos disponíveis.</Text>
-                )}
-                {points.map((point, index) => (
-                  <TouchableOpacity
-                    key={`${point.title}-${index}`}
-                    style={[styles.listItem, { backgroundColor: colors.card }, selectedIndex === index && [styles.listItemSelected, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]]}
-                    onPress={() => handlePointPress(index)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.dot, { backgroundColor: colors.primary }, selectedIndex === index && [styles.dotSelected, { backgroundColor: colors.primaryForeground }]]} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.listTitle, { color: colors.foreground }]}>{point.title}</Text>
-                      <Text style={[styles.listDetail, { color: selectedIndex === index ? colors.primaryForeground : colors.mutedForeground }]}>
-                        {selectedIndex === index ? "Selecionar destino..." : point.detail}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                ))}
-              </>
-            )}
-            {bottomTab === 'routes' && (
-              <>
-                {!isLoadingRoutes && !routesError && resolvedRoutes.length === 0 && (
-                  <Text style={[styles.listStatus, { color: colors.mutedForeground }]}>Sem trajetos disponíveis.</Text>
-                )}
-                {resolvedRoutes.map((route) => {
-                  const isSelected = selectedRouteId === route.id;
-                  const metrics = routeMetricsById[route.id];
-                  return (
-                    <TouchableOpacity
-                      key={route.id}
-                      style={[styles.listItem, { backgroundColor: colors.card }, isSelected && [styles.listItemSelected, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]]}
-                      onPress={() => {
-                        setSelectedRouteId(route.id);
-                        void ensureRouteRendered(route);
-                        setRouteList((prev) =>
-                          prev.some((r) => r.id === route.id) ? prev : [...prev, route]
-                        );
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Feather
-                        name="navigation"
-                        size={14}
-                        color={isSelected ? colors.primaryForeground : colors.primary}
-                        style={{ marginTop: 1 }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={[styles.listTitle, { color: colors.foreground }]}>{route.name}</Text>
-                        <Text style={[styles.listDetail, { color: isSelected ? colors.primaryForeground : colors.mutedForeground }]}>
-                          {metrics
-                            ? `${formatDistance(metrics.distanceMeters)}  •  ${formatDuration(metrics.durationSeconds)}`
-                            : 'A calcular...'}
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </>
-            )}
-          </ScrollView>
-        </View>
+      <MapBottomPanel
+        colors={colors}
+        tabBarHeight={tabBarHeight}
+        bottomTab={bottomTab}
+        setBottomTab={setBottomTab}
+        points={points}
+        resolvedRoutes={resolvedRoutes}
+        isLoadingPoints={isLoadingPoints}
+        isLoadingRoutes={isLoadingRoutes}
+        pointsError={pointsError}
+        routesError={routesError}
+        selectedIndex={selectedIndex}
+        handlePointPress={handlePointPress}
+        selectedRouteId={selectedRouteId}
+        setSelectedRouteId={setSelectedRouteId}
+        ensureRouteRendered={ensureRouteRendered}
+        setRouteList={setRouteList}
+        routeMetricsById={routeMetricsById}
+        formatDistance={formatDistance}
+        formatDuration={formatDuration}
+      />
 
         <RoutesScreenModal
           isOpen={isRoutesScreenOpen}
@@ -819,7 +661,6 @@ export default function MapaScreen() {
           isCreatingPoint={isCreatingPoint}
           handleCreatePointAtCursor={handleCreatePointAtCursor}
         />
-      </View>
     </View>
   );
 }

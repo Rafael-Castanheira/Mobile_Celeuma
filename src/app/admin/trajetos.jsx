@@ -26,6 +26,7 @@ import {
     highlightRoute,
 } from "../../lib/360api";
 import { isAdminRole } from "../../lib/auth";
+import { AdminHeader } from "../../components/admin/AdminUI";
 
 export default function TrajetosScreen() {
 	const router = useRouter();
@@ -226,19 +227,11 @@ export default function TrajetosScreen() {
 
 	return (
 		<View style={[styles.container, { backgroundColor: colors.background, paddingTop: top }]}>
-			<View style={[styles.header, { borderBottomColor: colors.border }]}>
-				<Pressable onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
-					<Feather name="arrow-left" size={20} color={colors.primary} />
-				</Pressable>
-				<Text style={[styles.title, { color: colors.primary }]}>Trajetos</Text>
-				{canCreateTrajeto ? (
-					<Pressable onPress={() => { setSelectedPointIds([]); setDescription(""); setCreateVisible(true); }} style={[styles.backBtn, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
-						<Feather name="plus" size={22} color={colors.primary} />
-					</Pressable>
-				) : (
-					<View style={styles.backBtnPlaceholder} />
-				)}
-			</View>
+			<AdminHeader 
+				title="Trajetos" 
+				rightIcon={canCreateTrajeto ? "plus" : undefined}
+				onRightPress={canCreateTrajeto ? () => { setSelectedPointIds([]); setDescription(""); setCreateVisible(true); } : undefined} 
+			/>
 
 			{loading && <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />}
 			{!loading && error && <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>}
@@ -337,17 +330,6 @@ export default function TrajetosScreen() {
 
 const styles = StyleSheet.create({
 	container: { flex: 1 },
-	header: {
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-between",
-		paddingHorizontal: 16,
-		paddingVertical: 14,
-		borderBottomWidth: 1,
-	},
-	backBtn: { padding: 6, borderWidth: 1, borderRadius: 999 },
-	backBtnPlaceholder: { width: 34, height: 34 },
-	title: { fontSize: 18, fontWeight: "700" },
 	errorText: { textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
 	emptyText: { textAlign: "center", marginTop: 40 },
 	card: {

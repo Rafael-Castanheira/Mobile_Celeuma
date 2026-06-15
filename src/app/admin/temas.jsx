@@ -20,6 +20,7 @@ import {
 } from "../../lib/360api";
 import { isAdminRole } from "../../lib/auth";
 import { isThemeColorValue, normalizeThemeColor } from "../../lib/theme";
+import { AdminHeader } from "../../components/admin/AdminUI";
 
 const PREFERRED_THEME_KEYS = [
 	"primary",
@@ -160,15 +161,11 @@ export default function TemasScreen() {
 
 	return (
 		<View style={[styles.container, { backgroundColor: colors.background, paddingTop: top }]}> 
-			<View style={[styles.header, { borderBottomColor: colors.border }]}>
-				<Pressable onPress={() => router.back()} style={styles.headerBtn}>
-					<Feather name="arrow-left" size={20} color={colors.foreground} />
-				</Pressable>
-				<Text style={[styles.title, { color: colors.foreground }]}>Temas</Text>
-				<Pressable onPress={() => load(true)} style={styles.headerBtn}>
-					<Feather name="refresh-cw" size={18} color={colors.foreground} />
-				</Pressable>
-			</View>
+			<AdminHeader 
+				title="Temas" 
+				rightIcon="refresh-cw" 
+				onRightPress={() => load(true)} 
+			/>
 
 			{loading && <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />}
 			{!loading && error && <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>}
@@ -322,17 +319,6 @@ export default function TemasScreen() {
 
 const styles = StyleSheet.create({
 	container: { flex: 1, backgroundColor: "#0d0000" },
-	header: {
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-between",
-		paddingHorizontal: 16,
-		paddingVertical: 14,
-		borderBottomWidth: 1,
-		borderBottomColor: "rgba(255,255,255,0.06)",
-	},
-	headerBtn: { padding: 6 },
-	title: { color: "#f8fafc", fontSize: 18, fontWeight: "700" },
 	errorText: { textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
 	currentCard: {
 		backgroundColor: "#1a0a0a",

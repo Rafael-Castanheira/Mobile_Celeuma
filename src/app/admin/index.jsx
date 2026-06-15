@@ -136,7 +136,7 @@ export default function AdminDashboard() {
 			{/* Header */}
 			<View style={styles.header}>
 				<View>
-					<BrandLogo size={54} iconSize={24} withFrame />
+					<BrandLogo size={72} withFrame />
 					{canManageContent ? (
 						<Text style={[styles.muted, { color: colors.mutedForeground }]}>Área de Administração</Text>
 					) : null}
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
 	modeSelector: {
 		flexDirection: "row",
 		alignItems: "center",
-		borderWidth: 1,
+		borderWidth: 3,
 		borderRadius: 999,
 		padding: 4,
 		gap: 4,
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
 		flexDirection: "row",
 		alignItems: "center",
 		gap: 4,
-		borderWidth: 1,
+		borderWidth: 0,
 		borderRadius: 20,
 		paddingHorizontal: 10,
 		paddingVertical: 4,
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
 		width: 42,
 		height: 42,
 		borderRadius: 21,
-		borderWidth: 1,
+		borderWidth: 3,
 		alignItems: "center",
 		justifyContent: "center",
 	},
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
 		alignItems: "center",
 		gap: 14,
 		borderRadius: 18,
-		borderWidth: 1,
+		borderWidth: 0,
 		padding: 16,
 		marginBottom: 28,
 	},
@@ -359,7 +359,7 @@ const styles = StyleSheet.create({
 		fontSize: 12,
 	},
 	rolePill: {
-		borderWidth: 1,
+		borderWidth: 0,
 		borderRadius: 12,
 		paddingHorizontal: 10,
 		paddingVertical: 4,
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
 	actionCard: {
 		width: "47%",
 		borderRadius: 18,
-		borderWidth: 1,
+		borderWidth: 3,
 		padding: 18,
 		elevation: 4,
 		shadowOpacity: 0.2,
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
 	},
 	actionCardFeatured: {
 		width: "100%",
-		borderWidth: 2,
+		borderWidth: 3,
 		paddingVertical: 20,
 		shadowOpacity: 0.28,
 		shadowRadius: 14,

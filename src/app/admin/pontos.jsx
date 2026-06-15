@@ -24,6 +24,7 @@ import {
     getPointCategories,
     updatePonto,
 } from "../../lib/360api";
+import { AdminHeader } from "../../components/admin/AdminUI";
 
 const EMPTY_FORM = { name: "", description: "", latitude: "", longitude: "", categoryIds: [] };
 
@@ -208,15 +209,11 @@ export default function PontosScreen() {
 
 	return (
 		<View style={[styles.container, { backgroundColor: colors.background, paddingTop: top }]}>
-			<View style={[styles.header, { borderBottomColor: colors.border }]}>
-				<Pressable onPress={() => router.back()} style={[styles.backBtn, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
-					<Feather name="arrow-left" size={20} color={colors.primary} />
-				</Pressable>
-				<Text style={[styles.title, { color: colors.primary }]}>Pontos</Text>
-				<Pressable onPress={openCreate} style={[styles.backBtn, { backgroundColor: colors.accentSoft, borderColor: colors.border }]}>
-					<Feather name="plus" size={22} color={colors.primary} />
-				</Pressable>
-			</View>
+			<AdminHeader 
+				title="Pontos" 
+				rightIcon="plus" 
+				onRightPress={openCreate} 
+			/>
 
 			{loading && <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />}
 			{!loading && error && <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>}
@@ -348,16 +345,6 @@ export default function PontosScreen() {
 
 const styles = StyleSheet.create({
 	container: { flex: 1 },
-	header: {
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-between",
-		paddingHorizontal: 16,
-		paddingVertical: 14,
-		borderBottomWidth: 1,
-	},
-	backBtn: { padding: 6, borderWidth: 1, borderRadius: 999 },
-	title: { fontSize: 18, fontWeight: "700" },
 	errorText: { textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
 	card: {
 		borderRadius: 12,

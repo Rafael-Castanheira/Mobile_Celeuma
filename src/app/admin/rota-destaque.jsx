@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useDialog } from "../../context/DialogContext";
 import { useAppTheme } from "../../context/ThemeContext";
 import { getMapPoints, getMapRoutes, getHighlightedRoute } from "../../lib/360api";
+import { AdminHeader } from "../../components/admin/AdminUI";
 
 export default function RotaDestaqueScreen() {
 	const router = useRouter();
@@ -64,15 +65,11 @@ export default function RotaDestaqueScreen() {
 
 	return (
 		<View style={[styles.container, { backgroundColor: colors.background, paddingTop: top }]}> 
-			<View style={[styles.header, { borderBottomColor: colors.border }]}> 
-				<Pressable onPress={() => router.back()} style={styles.headerBtn}>
-					<Feather name="arrow-left" size={20} color={colors.foreground} />
-				</Pressable>
-				<Text style={[styles.title, { color: colors.foreground }]}>Rota em Destaque</Text>
-				<Pressable onPress={() => void load(true)} style={styles.headerBtn}>
-					<Feather name="refresh-cw" size={18} color={colors.foreground} />
-				</Pressable>
-			</View>
+			<AdminHeader 
+				title="Rota em Destaque" 
+				rightIcon="refresh-cw" 
+				onRightPress={() => void load(true)} 
+			/>
 
 			{loading ? (
 				<ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />
@@ -128,16 +125,6 @@ export default function RotaDestaqueScreen() {
 
 const styles = StyleSheet.create({
 	container: { flex: 1 },
-	header: {
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-between",
-		paddingHorizontal: 16,
-		paddingVertical: 14,
-		borderBottomWidth: 1,
-	},
-	headerBtn: { padding: 6 },
-	title: { fontSize: 18, fontWeight: "700" },
 	featuredCard: {
 		borderWidth: 1,
 		borderRadius: 16,

@@ -8,6 +8,8 @@ const celeumaDark = require("../../assets/images/celeuma.svg");
 export default function BrandLogo({ size = 88, iconSize = 40, withFrame = true }) {
 	const { colors, logoUrl, isDark } = useAppTheme();
 
+	const finalImgSize = iconSize || size * 0.75;
+
 	return (
 		<View
 			style={[
@@ -20,23 +22,21 @@ export default function BrandLogo({ size = 88, iconSize = 40, withFrame = true }
 						? colors.card 
 						: "transparent",
 					borderColor: withFrame ? colors.border : "transparent",
-					shadowColor: isDark ? "rgba(255, 255, 255, 0.6)" : colors.shadow,
-					shadowOpacity: isDark ? 0.15 : 0.28,
-					shadowRadius: isDark ? 10 : 16,
-					borderWidth: withFrame ? 1.5 : 0,
+					shadowColor: colors.shadow,
+					borderWidth: withFrame ? 3 : 0,
 				},
 			]}
 		>
 			{logoUrl ? (
 				<Image
 					source={{ uri: logoUrl }}
-					style={{ width: size * 0.66, height: size * 0.66 }}
+					style={{ width: finalImgSize, height: finalImgSize }}
 					contentFit="contain"
 				/>
 			) : (
 				<Image 
 					source={isDark ? celeumaDark : celeumaLight} 
-					style={{ width: size * 0.66, height: size * 0.66 }}
+					style={{ width: finalImgSize, height: finalImgSize }}
 					contentFit="contain"
 				/>
 			)}
@@ -48,9 +48,9 @@ const styles = StyleSheet.create({
 	container: {
 		alignItems: "center",
 		justifyContent: "center",
-		shadowOpacity: 0.28,
-		shadowRadius: 16,
-		shadowOffset: { width: 0, height: 6 },
-		elevation: 8,
+		shadowOpacity: 0.5,
+		shadowRadius: 24,
+		shadowOffset: { width: 0, height: 8 },
+		elevation: 12,
 	},
 });

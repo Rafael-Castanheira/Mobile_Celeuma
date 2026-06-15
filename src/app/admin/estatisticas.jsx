@@ -12,8 +12,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
-import { useAppTheme } from "../../context/ThemeContext";
 import { getEstatisticasResumo } from "../../lib/360api";
+import { AdminHeader } from "../../components/admin/AdminUI";
 
 export default function EstatisticasScreen() {
 	const router = useRouter();
@@ -72,15 +72,11 @@ export default function EstatisticasScreen() {
 
 	return (
 		<View style={[styles.container, { backgroundColor: colors.background, paddingTop: top }]}>
-			<View style={[styles.header, { borderBottomColor: colors.border }]}>
-				<Pressable onPress={() => router.back()} style={styles.backBtn}>
-					<Feather name="arrow-left" size={20} color={colors.foreground} />
-				</Pressable>
-				<Text style={[styles.title, { color: colors.foreground }]}>Estatísticas</Text>
-				<Pressable onPress={() => load()} style={styles.backBtn}>
-					<Feather name="refresh-cw" size={18} color={colors.foreground} />
-				</Pressable>
-			</View>
+			<AdminHeader 
+				title="Estatísticas" 
+				rightIcon="refresh-cw" 
+				onRightPress={() => load()} 
+			/>
 
 			{loading && <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />}
 			{!loading && error && <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>}
@@ -143,17 +139,6 @@ export default function EstatisticasScreen() {
 
 const styles = StyleSheet.create({
 	container: { flex: 1, backgroundColor: "#0d0000" },
-	header: {
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-between",
-		paddingHorizontal: 16,
-		paddingVertical: 14,
-		borderBottomWidth: 1,
-		borderBottomColor: "rgba(255,255,255,0.06)",
-	},
-	backBtn: { padding: 6 },
-	title: { color: "#f8fafc", fontSize: 18, fontWeight: "700" },
 	errorText: { textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
 	grid: { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "space-between" },
 	statCard: {
