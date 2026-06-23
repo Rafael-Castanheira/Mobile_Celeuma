@@ -4,7 +4,28 @@ const LOGIN_ENDPOINT = `${BASE_URL}/auth/login`;
 const REGISTER_ENDPOINT = `${BASE_URL}/auth/registo`;
 const ME_ENDPOINT = `${BASE_URL}/auth/me`;
 
+// ── CONTA ADMIN TEMPORÁRIA ──────────────────────────────────────
+// Remover este bloco assim que tiver um admin real na base de dados.
+const TEMP_ADMIN_EMAIL = "admin@temp";
+const TEMP_ADMIN_PASSWORD = "admin123";
+const TEMP_ADMIN_USER = {
+	id: 0,
+	name: "Admin (temporário)",
+	email: TEMP_ADMIN_EMAIL,
+	role: "admin",
+};
+// ────────────────────────────────────────────────────────────────
+
 export async function loginUser(email, password) {
+	// ── bypass temporário — login offline de admin ──
+	if (
+		email.trim().toLowerCase() === TEMP_ADMIN_EMAIL &&
+		password === TEMP_ADMIN_PASSWORD
+	) {
+		return { token: "DEV_ADMIN_TOKEN", user: { ...TEMP_ADMIN_USER } };
+	}
+	// ────────────────────────────────────────────────
+
 	const response = await fetchWithTimeout(LOGIN_ENDPOINT, {
 		method: "POST",
 		headers: { "Content-Type": "application/json", Accept: "application/json" },
@@ -68,6 +89,12 @@ export async function registerUser(name, email, password) {
 }
 
 export async function getMe(token) {
+	// ── bypass temporário — sessão admin offline ──
+	if (token === "DEV_ADMIN_TOKEN") {
+		return { ...TEMP_ADMIN_USER };
+	}
+	// ──────────────────────────────────────────────
+
 	const response = await fetchWithTimeout(ME_ENDPOINT, {
 		headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
 	});

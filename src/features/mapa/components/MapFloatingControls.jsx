@@ -4,6 +4,7 @@ import { styles } from "../styles";
 
 export default function MapFloatingControls({
   colors,
+  isDark,
   top,
   isAdmin,
   openCreatePointModal,
@@ -18,6 +19,13 @@ export default function MapFloatingControls({
   showRoutes,
   toggleRoutes,
 }) {
+  // Em modo claro: outline e ícone usam a cor primary do tema activo
+  const fabBorder    = isDark ? colors.border    : colors.primary;
+  const fabIconColor = isDark ? colors.foreground : colors.primary;
+  const fabActiveBg     = colors.primary;
+  const fabActiveBorder = colors.primaryForeground;
+  const fabActiveIcon   = colors.primaryForeground;
+
   return (
     <>
       <View style={[styles.fabRow, { top: top + 8 }]}>
@@ -31,26 +39,44 @@ export default function MapFloatingControls({
           </TouchableOpacity>
         )}
 
+        {/* Botão Visão do mapa (layers) */}
         <TouchableOpacity
-          style={[styles.fabButton, { backgroundColor: colors.overlay, borderColor: colors.border }, isLayersMenuOpen && [styles.fabButtonActive, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]]}
+          style={[
+            styles.fabButton,
+            { backgroundColor: isDark ? colors.overlay : colors.card, borderColor: fabBorder },
+            isLayersMenuOpen && { backgroundColor: fabActiveBg, borderColor: fabActiveBorder },
+          ]}
           onPress={() => {
             setIsLayersMenuOpen((prev) => !prev);
             setIsRoutesMenuOpen(false);
           }}
           activeOpacity={0.8}
         >
-          <Feather name="layers" size={18} color={colors.foreground} />
+          <Feather
+            name="layers"
+            size={18}
+            color={isLayersMenuOpen ? fabActiveIcon : fabIconColor}
+          />
         </TouchableOpacity>
 
+        {/* Botão Trajetos (sliders) */}
         <TouchableOpacity
-          style={[styles.fabButton, { backgroundColor: colors.overlay, borderColor: colors.border }, isRoutesMenuOpen && [styles.fabButtonActive, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]]}
+          style={[
+            styles.fabButton,
+            { backgroundColor: isDark ? colors.overlay : colors.card, borderColor: fabBorder },
+            isRoutesMenuOpen && { backgroundColor: fabActiveBg, borderColor: fabActiveBorder },
+          ]}
           onPress={() => {
             setIsRoutesMenuOpen((prev) => !prev);
             setIsLayersMenuOpen(false);
           }}
           activeOpacity={0.8}
         >
-          <Feather name="sliders" size={18} color={colors.foreground} />
+          <Feather
+            name="sliders"
+            size={18}
+            color={isRoutesMenuOpen ? fabActiveIcon : fabIconColor}
+          />
         </TouchableOpacity>
 
         {routeList.length > 0 && (
@@ -70,7 +96,7 @@ export default function MapFloatingControls({
       </View>
 
       {isLayersMenuOpen && (
-        <View style={[styles.floatingPanel, { top: top + 56, backgroundColor: colors.overlay, borderColor: colors.border }]}> 
+        <View style={[styles.floatingPanel, { top: top + 56, backgroundColor: isDark ? colors.overlay : colors.card, borderColor: colors.border }]}>
           <Text style={[styles.floatingPanelTitle, { color: colors.mutedForeground }]}>Visão do mapa</Text>
 
           <TouchableOpacity
@@ -103,10 +129,10 @@ export default function MapFloatingControls({
       )}
 
       {isRoutesMenuOpen && (
-        <View style={[styles.floatingPanel, { top: top + 56, backgroundColor: colors.overlay, borderColor: colors.border }]}> 
+        <View style={[styles.floatingPanel, { top: top + 56, backgroundColor: isDark ? colors.overlay : colors.card, borderColor: colors.border }]}>
           <Text style={[styles.floatingPanelTitle, { color: colors.mutedForeground }]}>Trajetos</Text>
 
-          <View style={[styles.switchRow, { backgroundColor: colors.card }]}> 
+          <View style={[styles.switchRow, { backgroundColor: colors.card }]}>
             <Text style={[styles.toggleLabel, { color: colors.foreground }]}>Mostrar trajetos</Text>
             <Switch
               value={showRoutes}

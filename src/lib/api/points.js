@@ -101,7 +101,7 @@ export async function getPointCategories(signal) {
 export async function getPointDetails(id, token, signal) {
 	const response = await fetchWithTimeout(POINT_DETAILS_ENDPOINT(id), {
 		method: "GET",
-		headers: token ? authHeaders(token) : { Accept: "application/json" },
+		headers: token ? { ...authHeaders(token), "Cache-Control": "no-cache", "Pragma": "no-cache" } : { Accept: "application/json", "Cache-Control": "no-cache", "Pragma": "no-cache" },
 		signal,
 	});
 

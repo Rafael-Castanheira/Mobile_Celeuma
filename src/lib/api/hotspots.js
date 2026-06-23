@@ -21,7 +21,11 @@ export async function getPointMobileData(pointId, params = {}, signal) {
 
 	const response = await fetchWithTimeout(endpoint, {
 		method: "GET",
-		headers: { Accept: "application/json" },
+		headers: { 
+            Accept: "application/json",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache"
+        },
 		signal,
 	});
 

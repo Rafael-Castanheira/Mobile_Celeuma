@@ -34,7 +34,14 @@ export function ViewerProvider({ pointId: initialPointId, token, children }) {
         setError(null);
 
         try {
-            const { data } = await fetchWithCache(pointId, token, abortControllerRef.current.signal);
+            const onRevalidated = (newData) => {
+                if (abortControllerRef.current?.signal.aborted) return;
+                setAllHotspots(newData.hotspots || []);
+                setPointMetadata(newData.ponto);
+                setAlignments(Array.isArray(newData.alinhamentos) ? newData.alinhamentos : []);
+            };
+
+            const { data } = await fetchWithCache(pointId, token, abortControllerRef.current.signal, onRevalidated);
             
             if (pushToHistory && currentPointId) {
                 setNavigationHistory(prev => [...prev, { pointId: currentPointId, viewPath: currentViewPath }]);

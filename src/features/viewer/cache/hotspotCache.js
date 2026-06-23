@@ -29,7 +29,7 @@ async function loadPointData(pointId, token, signal) {
     };
 }
 
-export async function fetchWithCache(pointId, token, signal) {
+export async function fetchWithCache(pointId, token, signal, onRevalidated) {
     const key = getCacheKey(pointId);
     const now = Date.now();
     let cachedData = null;
@@ -54,7 +54,7 @@ export async function fetchWithCache(pointId, token, signal) {
     // Se temos cache, retornamos imediatamente mas lançamos a revalidação em background (sem await)
     if (cachedData) {
         updateCacheAccessTime(pointId).catch(() => {}); // Atualizar tempo de acesso para LRU
-        revalidateInBg(pointId, key, token).catch(() => {});
+        revalidateInBg(pointId, key, token, onRevalidated).catch(() => {});
         return { data: cachedData, stale: true };
     }
 
@@ -87,10 +87,18 @@ export async function fetchWithCache(pointId, token, signal) {
     }
 }
 
-async function revalidateInBg(pointId, key, token) {
-    const data = await loadPointData(pointId, token);
-    const cacheData = { timestamp: Date.now(), data };
-    await AsyncStorage.setItem(key, JSON.stringify(cacheData));
-    // Registrar no índice de cache
-    await registerCacheItem(pointId, cacheData).catch(() => {});
+async function revalidateInBg(pointId, key, token, onRevalidated) {
+    try {
+        const data = await loadPointData(pointId, token);
+        const cacheData = { timestamp: Date.now(), data };
+        await AsyncStorage.setItem(key, JSON.stringify(cacheData));
+        // Registrar no índice de cache
+        await registerCacheItem(pointId, cacheData).catch(() => {});
+        
+        if (typeof onRevalidated === 'function') {
+            onRevalidated(data);
+        }
+    } catch (e) {
+        console.warn("Background revalidation failed:", e);
+    }
 }

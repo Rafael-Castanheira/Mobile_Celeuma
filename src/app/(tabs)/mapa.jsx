@@ -33,7 +33,7 @@ export default function MapaScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { top } = useSafeAreaInsets();
   const { token, user } = useAuth();
-  const { colors } = useAppTheme();
+  const { colors, isDark } = useAppTheme();
   const { showError, showInfo, showSuccess } = useDialog();
   const webViewRef = useRef(null);
   const [coords, setCoords] = useState({ lat: "--", lng: "--" });
@@ -551,6 +551,7 @@ export default function MapaScreen() {
 
         <MapFloatingControls
           colors={colors}
+          isDark={isDark}
           top={top}
           isAdmin={isAdminRole(user?.role)}
           openCreatePointModal={openCreatePointModal}

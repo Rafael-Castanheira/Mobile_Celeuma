@@ -553,18 +553,31 @@ export function getViewerScripts(safeUploadsBaseUrl) {
               return;
             }
 
-            this._textureLoader.load(
-              resolvedSrc,
-              (texture) => {
-                texture.colorSpace = THREE.SRGBColorSpace;
-                texture.needsUpdate = true;
-                finalize(texture);
-              },
-              undefined,
-              () => {
+            // Carrega via fetch+blob para evitar problemas de CORS em WebView (tal como no panorama-dome)
+            fetch(resolvedSrc)
+              .then((response) => {
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                return response.blob();
+              })
+              .then((blob) => {
+                const blobUrl = URL.createObjectURL(blob);
+                const img = new Image();
+                img.onload = () => {
+                  const THREE = window.THREE;
+                  const texture = new THREE.Texture(img);
+                  texture.colorSpace = THREE.SRGBColorSpace;
+                  texture.needsUpdate = true;
+                  URL.revokeObjectURL(blobUrl);
+                  finalize(texture);
+                };
+                img.onerror = () => {
+                  URL.revokeObjectURL(blobUrl);
+                };
+                img.src = blobUrl;
+              })
+              .catch((err) => {
                 // silently ignore
-              }
-            );
+              });
           },
         });
       }

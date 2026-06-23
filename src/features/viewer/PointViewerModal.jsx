@@ -16,8 +16,7 @@ import { WebView } from 'react-native-webview';
 
 import { useViewer } from '../../context/ViewerContext';
 import { BASE_URL } from '../../lib/api/client';
-import HotspotRenderer from '../viewer/hotspots/HotspotRenderer';
-import { buildViewerHtml } from '../viewer/viewerHtml';
+
 
 // Resolve relative paths to absolute URLs
 function resolveMediaUrl(pathOrUrl) {
@@ -49,7 +48,7 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
 
     const { bottom: safeBottom } = useSafeAreaInsets();
 
-    const [isWebViewReady, setIsWebViewReady] = useState(false);
+    const [webViewReadyCount, setWebViewReadyCount] = useState(0);
     const [hasShownError, setHasShownError] = useState(false);
     const [showInfo, setShowInfo] = useState(false);
 
@@ -69,7 +68,7 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
     // Reset state when modal closes
     useEffect(() => {
         if (!isVisible) {
-            setIsWebViewReady(false);
+            setWebViewReadyCount(0);
             setHasShownError(false);
             setShowInfo(false);
         }
@@ -83,42 +82,50 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
         }
     }, [error, hasShownError, showError]);
 
-    // Resolve source URL for current view
-    const normalizedCurrentViewPath = String(currentViewPath || '').trim();
-    const normalizedInitialViewPath = String(initialViewPath || '').trim();
-    const isInitialView =
-        !normalizedCurrentViewPath || normalizedCurrentViewPath === normalizedInitialViewPath;
+    // Use the Web App URL instead of generating HTML
+    const webAppUrl = pointMetadata?.id_ponto || pointMetadata?.id
+        ? `https://galerias360-frontend.onrender.com/view/p/${pointMetadata.id_ponto || pointMetadata.id}`
+        : null;
 
-    const sourceUrl = isInitialView
-        ? (pointMetadata?.image_url ||
-           pointMetadata?.imageUrl ||
-           resolveMediaUrl(normalizedInitialViewPath) ||
-           resolveMediaUrl(normalizedCurrentViewPath) ||
-           '')
-        : resolveMediaUrl(normalizedCurrentViewPath) || '';
-
-    // Build A-Frame HTML
-    const pointViewerHtml = React.useMemo(() => {
-        if (!sourceUrl) return '';
-        return buildViewerHtml(
-            sourceUrl,
-            pointMetadata?.name || 'A carregar...',
-            pointMetadata?.description || '',
-            {
-                background: colors.background,
-                foreground: colors.foreground,
-                border: colors.border,
-                overlay: colors.overlay,
-                mutedForeground: colors.mutedForeground,
-                card: colors.card,
-                primary: colors.primary,
-            },
-            {
-                baseUrl: BASE_URL,
-                dome: currentAlignment || undefined,
-            }
-        );
-    }, [sourceUrl, pointMetadata, colors, currentAlignment]);
+    // Inject CSS to adapt the Web App UI for Mobile (Hide top-left, push top-right below notch, snap bottom panel)
+    const hideWebUI = `
+      (function() {
+        var style = document.createElement('style');
+        style.innerHTML = \`
+          /* Esconder botão de voltar da Web */
+          div.absolute.top-4.left-4 { display: none !important; }
+          
+          /* Painel de Hotspots (escondido por defeito, menor e por baixo do botão) */
+          div.absolute.top-3.right-3 { 
+            top: 105px !important; 
+            right: 12px !important; 
+            width: 180px !important;
+            transform-origin: top right !important;
+            transform: scale(0.9) !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            transition: opacity 0.2s ease !important;
+          }
+          
+          body.show-hotspots-tab div.absolute.top-3.right-3 {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+          }
+          
+          /* Ancorar painel Customizável ao fundo do ecrã */
+          div.fixed.bottom-4.left-1\\\\/2 { 
+            bottom: 0 !important; 
+            width: 100vw !important; 
+            max-width: 100vw !important; 
+            padding-bottom: 34px !important; 
+            border-bottom-left-radius: 0 !important; 
+            border-bottom-right-radius: 0 !important; 
+          }
+        \`;
+        document.head.appendChild(style);
+      })();
+      true;
+    `;
 
     const hasHistory = navigationHistory.length > 0;
     const categories = Array.isArray(pointMetadata?.categorias) ? pointMetadata.categorias : [];
@@ -141,43 +148,42 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
             const payload = JSON.parse(event.nativeEvent.data);
 
             if (payload.status === 'ready') {
-                setIsWebViewReady(true);
+                setWebViewReadyCount(c => c + 1);
                 return;
             }
 
-            if (payload.action === 'navigatePoint') {
-                navigateToPoint(payload.pointId);
-            } else if (payload.action === 'navigateFile') {
-                navigateToFile(payload.fileUrl, payload.filePath);
-            } else if (payload.action === 'navigateBack') {
-                navigateBack();
-            } else if (payload.action === 'openLink') {
+            if (payload.action === 'openLink') {
                 Linking.openURL(payload.url).catch(() => {
                     showError('Não foi possível abrir o link.');
                 });
-            } else if (payload.point360Error) {
-                if (hasShownError) return;
-                setHasShownError(true);
-                const msg =
-                    (payload.error && payload.error.message) ||
-                    payload.message ||
-                    'Não foi possível abrir esta imagem no visualizador 360.';
-                showError(msg, 'Erro no visualizador 360');
             }
         } catch (_e) {}
+    };
+
+    const handleBack = () => {
+        if (showInfo) {
+            setShowInfo(false);
+        } else {
+            onClose();
+        }
     };
 
     if (!isVisible) return null;
 
     const btnStyle = (active = false) => ({
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: active ? colors.primary : colors.card,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: active ? colors.primary : colors.overlay,
-        borderColor: active ? colors.primary : colors.border,
         borderWidth: 1,
+        borderColor: colors.border,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
     });
 
     return (
@@ -186,24 +192,17 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
             animationType="slide"
             presentationStyle="fullScreen"
             statusBarTranslucent
-            onRequestClose={() => {
-                if (showInfo) {
-                    setShowInfo(false);
-                } else if (hasHistory) {
-                    navigateBack();
-                } else {
-                    onClose();
-                }
-            }}
+            onRequestClose={handleBack}
         >
             <View style={{ flex: 1, backgroundColor: colors.background }}>
 
                 {/* ── WebView ── */}
-                {sourceUrl ? (
+                {webAppUrl ? (
                     <WebView
                         ref={webViewRef}
                         style={{ flex: 1, backgroundColor: colors.background }}
-                        source={{ html: pointViewerHtml }}
+                        source={{ uri: webAppUrl }}
+                        injectedJavaScript={hideWebUI}
                         originWhitelist={['*']}
                         javaScriptEnabled
                         domStorageEnabled
@@ -236,9 +235,6 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
                     />
                 ) : null}
 
-                {/* ── Hotspot bridge ── */}
-                <HotspotRenderer webViewRef={webViewRef} isWebViewReady={isWebViewReady} />
-
                 {/* ── TOP-LEFT CONTROLS (back / close / info) ── */}
                 <View
                     style={{
@@ -249,15 +245,7 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
                         gap: 8,
                     }}
                 >
-                    {hasHistory && (
-                        <TouchableOpacity
-                            style={btnStyle()}
-                            onPress={navigateBack}
-                            activeOpacity={0.8}
-                        >
-                            <Feather name="arrow-left" size={18} color={colors.foreground} />
-                        </TouchableOpacity>
-                    )}
+
 
                     <TouchableOpacity
                         style={btnStyle()}
@@ -295,19 +283,14 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
                         onPress={() => {
                             if (webViewRef.current) {
                                 webViewRef.current.injectJavaScript(`
-                                    (function() {
-                                        var scene = document.querySelector('a-scene');
-                                        if (scene && scene.enterVR) {
-                                            scene.enterVR();
-                                        }
-                                        return true;
-                                    })();
+                                    document.body.classList.toggle('show-hotspots-tab');
+                                    true;
                                 `);
                             }
                         }}
                         activeOpacity={0.8}
                     >
-                        <Feather name="maximize" size={18} color={colors.foreground} />
+                        <Feather name="list" size={18} color={colors.foreground} />
                     </TouchableOpacity>
                 </View>
 
@@ -431,9 +414,9 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
                             borderColor: colors.border,
                         }}
                     >
-                        {!!sourceUrl && (
+                        {!!(pointMetadata?.image_url || pointMetadata?.imageUrl) && (
                             <Image 
-                                source={{ uri: sourceUrl }} 
+                                source={{ uri: pointMetadata?.image_url || pointMetadata?.imageUrl }} 
                                 style={{ width: 48, height: 48, borderRadius: 8, marginRight: 12, backgroundColor: colors.overlay }}
                             />
                         )}
@@ -549,39 +532,7 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
                             </View>
                         )}
 
-                        {/* Back button inside sheet */}
-                        {hasHistory && (
-                            <TouchableOpacity
-                                onPress={() => {
-                                    setShowInfo(false);
-                                    navigateBack();
-                                }}
-                                activeOpacity={0.8}
-                                style={{
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: 6,
-                                    paddingVertical: 10,
-                                    borderRadius: 12,
-                                    borderWidth: 1,
-                                    borderColor: colors.border,
-                                    backgroundColor: colors.overlay,
-                                    marginTop: 4,
-                                }}
-                            >
-                                <Feather name="arrow-left" size={15} color={colors.foreground} />
-                                <Text
-                                    style={{
-                                        color: colors.foreground,
-                                        fontSize: 14,
-                                        fontWeight: '500',
-                                    }}
-                                >
-                                    Vista anterior
-                                </Text>
-                            </TouchableOpacity>
-                        )}
+
                     </ScrollView>
                 </Animated.View>
             </View>
