@@ -10,6 +10,7 @@ import {
     Text,
     TextInput,
     View,
+    Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BrandLogo from "../components/BrandLogo";
@@ -27,7 +28,18 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [rgpdAccepted, setRgpdAccepted] = useState(false);
+  const [rgpdModalVisible, setRgpdModalVisible] = useState(false);
+  const [rgpdHasBeenRead, setRgpdHasBeenRead] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const handleScroll = (event) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+    const paddingToBottom = 50;
+    if (layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom) {
+      setRgpdHasBeenRead(true);
+    }
+  };
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
@@ -38,6 +50,12 @@ export default function Register() {
     if (!cleanName || !cleanEmail || !password || !confirmPassword) {
       setSuccess(null);
       setError("Por favor, preencha todos os campos.");
+      return;
+    }
+
+    if (!rgpdAccepted) {
+      setSuccess(null);
+      setError("É necessário ler e aceitar o RGPD para criar conta.");
       return;
     }
 
@@ -175,6 +193,32 @@ export default function Register() {
               </View>
             </View>
 
+            <View style={styles.checkboxContainer}>
+              <Pressable 
+                onPress={() => {
+                  if (!rgpdHasBeenRead) {
+                    setRgpdModalVisible(true);
+                  } else {
+                    setRgpdAccepted(!rgpdAccepted);
+                  }
+                }}
+              >
+                <Feather 
+                  name={rgpdAccepted ? "check-square" : "square"} 
+                  size={20} 
+                  color={rgpdAccepted ? colors.primary : colors.iconMuted} 
+                />
+              </Pressable>
+              <Pressable 
+                style={{ flex: 1, marginLeft: 8 }}
+                onPress={() => setRgpdModalVisible(true)}
+              >
+                <Text style={[styles.checkboxLabel, { color: colors.foreground }]}>
+                  Confirmo que li e aceito o <Text style={{ color: colors.primary, fontWeight: "bold" }}>RGPD</Text>.
+                </Text>
+              </Pressable>
+            </View>
+
             <Pressable
               style={({ pressed }) => [
                 styles.registerBtn,
@@ -202,6 +246,62 @@ export default function Register() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal
+        visible={rgpdModalVisible}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setRgpdModalVisible(false)}
+      >
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <Text style={[styles.modalTitle, { color: colors.foreground }]}>Política de Privacidade e RGPD</Text>
+          <ScrollView 
+            style={styles.modalScroll}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+          >
+            <Text style={[styles.modalText, { color: colors.foreground }]}>
+              1. Recolha de Dados{'\n'}
+              A nossa aplicação recolhe dados pessoais como o nome e o e-mail com o objetivo de criar e gerir a sua conta.{'\n\n'}
+              2. Uso dos Dados{'\n'}
+              Os dados recolhidos serão utilizados exclusivamente para autenticação e comunicação relacionada com a aplicação.{'\n\n'}
+              3. Partilha de Dados{'\n'}
+              Não partilhamos os seus dados com terceiros sem o seu consentimento explícito, exceto quando exigido por lei.{'\n\n'}
+              4. Direitos do Utilizador{'\n'}
+              Tem o direito de aceder, retificar ou apagar os seus dados a qualquer momento.{'\n\n'}
+              5. Segurança{'\n'}
+              Implementamos medidas de segurança para proteger as suas informações pessoais contra acessos não autorizados.{'\n\n'}
+              6. Consentimento{'\n'}
+              Ao aceitar, concorda com a recolha e processamento dos seus dados conforme descrito nesta política.{'\n\n'}
+              7. Alterações à Política{'\n'}
+              Reservamo-nos o direito de alterar esta política. Será notificado de quaisquer alterações significativas.{'\n\n'}
+              (Por favor, faça scroll até ao fim para poder aceitar)
+              {'\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n'}
+              [Fim do documento]
+            </Text>
+          </ScrollView>
+          <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
+            <Pressable 
+              style={[styles.modalBtn, !rgpdHasBeenRead && styles.modalBtnDisabled, { backgroundColor: rgpdHasBeenRead ? colors.primary : colors.buttonDisabled }]}
+              disabled={!rgpdHasBeenRead}
+              onPress={() => {
+                setRgpdAccepted(true);
+                setRgpdModalVisible(false);
+              }}
+            >
+              <Text style={[styles.modalBtnText, { color: colors.primaryForeground }]}>
+                {rgpdHasBeenRead ? "Aceitar e Fechar" : "Leia até ao fim para aceitar"}
+              </Text>
+            </Pressable>
+            <Pressable 
+              style={styles.modalBtnCancel}
+              onPress={() => setRgpdModalVisible(false)}
+            >
+              <Text style={[styles.modalBtnCancelText, { color: colors.mutedForeground }]}>Cancelar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -269,6 +369,60 @@ const styles = StyleSheet.create({
   },
   eyeBtn: {
     paddingLeft: 8,
+  },
+  checkboxContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  checkboxLabel: {
+    fontSize: 14,
+  },
+  modalContainer: {
+    flex: 1,
+    paddingTop: Platform.OS === "ios" ? 50 : 20,
+    paddingHorizontal: 20,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  modalScroll: {
+    flex: 1,
+    marginBottom: 20,
+  },
+  modalText: {
+    fontSize: 15,
+    lineHeight: 24,
+  },
+  modalFooter: {
+    borderTopWidth: 1,
+    paddingVertical: 16,
+    paddingBottom: Platform.OS === "ios" ? 34 : 16,
+  },
+  modalBtn: {
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  modalBtnDisabled: {
+    opacity: 0.6,
+  },
+  modalBtnText: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  modalBtnCancel: {
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  modalBtnCancelText: {
+    fontSize: 15,
+    fontWeight: "600",
   },
   registerBtn: {
     borderRadius: 10,

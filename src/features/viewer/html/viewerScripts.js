@@ -583,6 +583,69 @@ export function getViewerScripts(safeUploadsBaseUrl) {
       }
     }
 
+    // ----- SMOOTH-LOOK: damping for shaky hands -----
+    if (!AFRAME.components['smooth-look']) {
+      AFRAME.registerComponent('smooth-look', {
+        schema: {
+          factor: { type: 'number', default: 0.08 },
+          touchSensitivity: { type: 'number', default: 0.4 },
+        },
+        init: function () {
+          this._smoothYaw = 0;
+          this._smoothPitch = 0;
+          this._initialised = false;
+          this._patchApplied = false;
+        },
+        tick: function () {
+          var lc = this.el.components['look-controls'];
+          if (!lc) return;
+
+          // ---- one-time patch: scale down touch deltas ----
+          if (!this._patchApplied && lc.onTouchMove) {
+            this._patchApplied = true;
+            var sens = Math.max(0.05, Math.min(1, this.data.touchSensitivity));
+            var origOnTouchMove = lc.onTouchMove.bind(lc);
+
+            // A-Frame look-controls stores accumulated rotation in
+            // lc.pitchObject.rotation.x (pitch) and lc.yawObject.rotation.y (yaw).
+            // We wrap onTouchMove to capture before/after and scale the delta.
+            lc.onTouchMove = function (evt) {
+              var prevPitch = lc.pitchObject ? lc.pitchObject.rotation.x : 0;
+              var prevYaw   = lc.yawObject   ? lc.yawObject.rotation.y   : 0;
+              origOnTouchMove(evt);
+              if (lc.pitchObject && lc.yawObject) {
+                var dPitch = lc.pitchObject.rotation.x - prevPitch;
+                var dYaw   = lc.yawObject.rotation.y   - prevYaw;
+                lc.pitchObject.rotation.x = prevPitch + dPitch * sens;
+                lc.yawObject.rotation.y   = prevYaw   + dYaw   * sens;
+              }
+            };
+          }
+
+          // ---- exponential smoothing on the camera rotation ----
+          if (!lc.pitchObject || !lc.yawObject) return;
+
+          var targetPitch = lc.pitchObject.rotation.x;
+          var targetYaw   = lc.yawObject.rotation.y;
+
+          if (!this._initialised) {
+            this._smoothPitch = targetPitch;
+            this._smoothYaw   = targetYaw;
+            this._initialised = true;
+            return;
+          }
+
+          var f = Math.max(0.01, Math.min(1, this.data.factor));
+          this._smoothPitch += (targetPitch - this._smoothPitch) * f;
+          this._smoothYaw   += (targetYaw   - this._smoothYaw)   * f;
+
+          // Write the smoothed values back so the camera renders them
+          lc.pitchObject.rotation.x = this._smoothPitch;
+          lc.yawObject.rotation.y   = this._smoothYaw;
+        }
+      });
+    }
+
     // Panorama dome (mesh) com alinhamento semelhante ao web.
     if (!AFRAME.components['panorama-dome']) {
       AFRAME.registerComponent('panorama-dome', {

@@ -6,8 +6,6 @@ export default function MapFloatingControls({
   colors,
   isDark,
   top,
-  isAdmin,
-  openCreatePointModal,
   isLayersMenuOpen,
   setIsLayersMenuOpen,
   isRoutesMenuOpen,
@@ -29,16 +27,6 @@ export default function MapFloatingControls({
   return (
     <>
       <View style={[styles.fabRow, { top: top + 8 }]}>
-        {isAdmin && (
-          <TouchableOpacity
-            style={[styles.fabButton, { backgroundColor: colors.primary, borderColor: colors.primaryForeground }]}
-            onPress={openCreatePointModal}
-            activeOpacity={0.8}
-          >
-            <Feather name="plus" size={18} color={colors.primaryForeground} />
-          </TouchableOpacity>
-        )}
-
         {/* Botão Visão do mapa (layers) */}
         <TouchableOpacity
           style={[

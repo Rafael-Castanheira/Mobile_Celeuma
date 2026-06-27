@@ -1,5 +1,5 @@
-import { getViewerStyles } from "./html/viewerStyles";
 import { getViewerScripts } from "./html/viewerScripts";
+import { getViewerStyles } from "./html/viewerStyles";
 
 /**
  * Constrói o HTML com o A-Frame para o WebView.
@@ -83,10 +83,11 @@ ${getViewerScripts(safeUploadsBaseUrl)}
 
     <a-camera
       position="0 0 0"
-      look-controls="magicWindowTrackingEnabled: false"
+      look-controls="magicWindowTrackingEnabled: false; pointerLockEnabled: false; touchEnabled: true"
       wasd-controls="enabled: false"
       raycaster="objects: .hotspot-interaction"
       cursor="rayOrigin: mouse"
+      smooth-look="factor: 0.1; touchSensitivity: 0.10"
     ></a-camera>
 
     <!-- Panorama (usa a-sky nativo do A-Frame, tal como a versão web) -->

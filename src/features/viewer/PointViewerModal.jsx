@@ -96,8 +96,10 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
           div.absolute.top-4.left-4 { display: none !important; }
           
           /* Painel de Hotspots (escondido por defeito, menor e por baixo do botão) */
-          div.absolute.top-3.right-3 { 
+          div[class*="z-20"][class*="w-[220px]"] { 
+            position: absolute !important;
             top: 105px !important; 
+            bottom: auto !important; 
             right: 12px !important; 
             width: 180px !important;
             transform-origin: top right !important;
@@ -107,7 +109,7 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
             transition: opacity 0.2s ease !important;
           }
           
-          body.show-hotspots-tab div.absolute.top-3.right-3 {
+          body.show-hotspots-tab div[class*="z-20"][class*="w-[220px]"] {
             opacity: 1 !important;
             pointer-events: auto !important;
           }
@@ -123,6 +125,55 @@ export default function PointViewerModal({ isVisible, onClose, top, colors, show
           }
         \`;
         document.head.appendChild(style);
+
+        /* ── Kill gyroscope / device orientation ── */
+        function killGyro() {
+          // 1) Block future deviceorientation events
+          window.addEventListener('deviceorientation', function(e) {
+            e.stopImmediatePropagation();
+          }, true);
+          window.addEventListener('devicemotion', function(e) {
+            e.stopImmediatePropagation();
+          }, true);
+          window.addEventListener('deviceorientationabsolute', function(e) {
+            e.stopImmediatePropagation();
+          }, true);
+
+          // 2) Stub THREE.DeviceOrientationControls
+          var noopFn = function(){};
+          var DummyDOC = function(){ this.enabled = false; };
+          DummyDOC.prototype.connect = noopFn;
+          DummyDOC.prototype.disconnect = noopFn;
+          DummyDOC.prototype.update = noopFn;
+          DummyDOC.prototype.dispose = noopFn;
+          if (window.THREE) window.THREE.DeviceOrientationControls = DummyDOC;
+          if (window.AFRAME && AFRAME.THREE) AFRAME.THREE.DeviceOrientationControls = DummyDOC;
+
+          // 3) Disconnect any already-created magicWindowControls on the camera
+          var scene = document.querySelector('a-scene');
+          if (scene) {
+            var cam = scene.querySelector('[look-controls]') || scene.querySelector('a-camera') || scene.camera && scene.camera.el;
+            if (cam && cam.components && cam.components['look-controls']) {
+              var lc = cam.components['look-controls'];
+              if (lc.magicWindowControls) {
+                lc.magicWindowControls.disconnect && lc.magicWindowControls.disconnect();
+                lc.magicWindowControls.enabled = false;
+                lc.magicWindowControls = null;
+              }
+            }
+          }
+        }
+
+        // Run immediately and also after scene loads (in case A-Frame isn't ready yet)
+        killGyro();
+        if (document.querySelector('a-scene')) {
+          var scEl = document.querySelector('a-scene');
+          if (scEl.hasLoaded) { killGyro(); }
+          else { scEl.addEventListener('loaded', killGyro); }
+        }
+        // Also retry after a short delay as fallback
+        setTimeout(killGyro, 1000);
+        setTimeout(killGyro, 3000);
       })();
       true;
     `;

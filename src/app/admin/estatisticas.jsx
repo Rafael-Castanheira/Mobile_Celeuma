@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
-    Pressable,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -12,6 +11,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../context/AuthContext";
+import { useAppTheme } from "../../context/ThemeContext";
 import { getEstatisticasResumo } from "../../lib/360api";
 import { AdminHeader } from "../../components/admin/AdminUI";
 
@@ -59,16 +59,19 @@ export default function EstatisticasScreen() {
 		load();
 	}, [load]);
 
-	const cards = stats
-		? [
-				{ label: "Total Visualizações", value: stats.totalVisualizacoes, icon: "eye" },
-				{ label: "Total Pontos", value: stats.totalPontos, icon: "map-pin" },
-				{ label: "Total Trajetos", value: stats.totalTrajetos, icon: "navigation" },
-				{ label: "Novos Pontos", value: stats.novosPontos, icon: "plus-circle" },
-				{ label: "Novos Trajetos", value: stats.novosTrajetos, icon: "git-branch" },
-				{ label: "% Visualizações", value: `${stats.percentagemVisualizacoes}%`, icon: "trending-up" },
-			]
-		: [];
+	let pctDesktop = 0;
+	let pctMobile = 0;
+
+	if (stats) {
+		const rawDispositivos = stats.dispositivos || { desktop: 0, mobile: 0, tablet: 0 };
+		const dispositivos = {
+			desktop: rawDispositivos.desktop || 0,
+			mobile: (rawDispositivos.mobile || 0) + (rawDispositivos.tablet || 0),
+		};
+		const totalDispositivos = dispositivos.desktop + dispositivos.mobile;
+		pctDesktop = totalDispositivos > 0 ? ((dispositivos.desktop / totalDispositivos) * 100).toFixed(0) : 0;
+		pctMobile = totalDispositivos > 0 ? ((dispositivos.mobile / totalDispositivos) * 100).toFixed(0) : 0;
+	}
 
 	return (
 		<View style={[styles.container, { backgroundColor: colors.background, paddingTop: top }]}>
@@ -88,49 +91,80 @@ export default function EstatisticasScreen() {
 						<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={colors.primary} />
 					}
 				>
-					{/* Grid */}
 					<View style={styles.grid}>
-						{cards.map((card) => (
-							<View key={card.label} style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-								<View style={[styles.iconWrap, { backgroundColor: colors.accentSoft }]}>
-									<Feather name={card.icon} size={18} color={colors.primary} />
+						{/* Total de Visualizações */}
+						<View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+							<View style={styles.cardHeader}>
+								<View style={styles.cardHeaderLeft}>
+									<Feather name="eye" size={14} color={colors.mutedForeground} />
+									<Text style={[styles.cardTitleText, { color: colors.mutedForeground }]}>Total de Visualizações</Text>
 								</View>
-								<Text style={[styles.statValue, { color: colors.foreground }]}>{card.value}</Text>
-								<Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{card.label}</Text>
+								<View style={[styles.badge, { borderColor: colors.border }]}>
+									<Feather name="trending-up" size={10} color={colors.foreground} />
+									<Text style={[styles.badgeText, { color: colors.foreground }]}>+{stats.percentagemVisualizacoes}% este mês</Text>
+								</View>
 							</View>
-						))}
-					</View>
+							<Text style={[styles.statValue, { color: colors.foreground }]}>{stats.totalVisualizacoes}</Text>
+						</View>
 
-					{/* Highlights */}
-					{(stats.pontoMaisVisto || stats.rotaMaisVista) && (
-						<>
-							<Text style={[styles.sectionTitle, { color: colors.foreground }]}>Destaques</Text>
-							{stats.pontoMaisVisto && (
-								<View style={[styles.highlightCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-									<View style={[styles.highlightIcon, { backgroundColor: colors.accentSoft }]}>
-										<Feather name="map-pin" size={16} color={colors.primary} />
-									</View>
-									<View style={{ flex: 1 }}>
-										<Text style={[styles.highlightSub, { color: colors.mutedForeground }]}>Ponto mais visto</Text>
-										<Text style={[styles.highlightName, { color: colors.foreground }]}>{stats.pontoMaisVisto.nome}</Text>
-									</View>
-									<Text style={[styles.highlightCount, { color: colors.mutedForeground }]}>{stats.pontoMaisVisto.total} visualizações</Text>
+						{/* Ponto mais visto */}
+						<View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+							<View style={styles.cardHeader}>
+								<View style={styles.cardHeaderLeft}>
+									<Feather name="map-pin" size={14} color={colors.mutedForeground} />
+									<Text style={[styles.cardTitleText, { color: colors.mutedForeground }]}>Ponto mais visto</Text>
 								</View>
-							)}
-							{stats.rotaMaisVista && (
-								<View style={[styles.highlightCard, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 10 }]}>
-									<View style={[styles.highlightIcon, { backgroundColor: colors.accentSoft }]}>
-										<Feather name="navigation" size={16} color={colors.primary} />
-									</View>
-									<View style={{ flex: 1 }}>
-										<Text style={[styles.highlightSub, { color: colors.mutedForeground }]}>Rota mais vista</Text>
-										<Text style={[styles.highlightName, { color: colors.foreground }]}>{stats.rotaMaisVista.nome}</Text>
-									</View>
-									<Text style={[styles.highlightCount, { color: colors.mutedForeground }]}>{stats.rotaMaisVista.total} visualizações</Text>
+								<View style={[styles.badge, { borderColor: colors.border }]}>
+									<Feather name="trending-up" size={10} color={colors.foreground} />
+									<Text style={[styles.badgeText, { color: colors.foreground }]}>{stats.pontoMaisVisto?.total || 0} visualizações</Text>
 								</View>
-							)}
-						</>
-					)}
+							</View>
+							<Text style={[styles.statValue, { color: colors.foreground }]} numberOfLines={1}>
+								{stats.pontoMaisVisto?.nome || "—"}
+							</Text>
+						</View>
+
+						{/* Trajeto mais visto */}
+						<View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+							<View style={styles.cardHeader}>
+								<View style={styles.cardHeaderLeft}>
+									<Feather name="navigation" size={14} color={colors.mutedForeground} />
+									<Text style={[styles.cardTitleText, { color: colors.mutedForeground }]}>Trajeto mais visto</Text>
+								</View>
+								<View style={[styles.badge, { borderColor: colors.border }]}>
+									<Feather name="trending-up" size={10} color={colors.foreground} />
+									<Text style={[styles.badgeText, { color: colors.foreground }]}>{stats.rotaMaisVista?.total || 0} visualizações</Text>
+								</View>
+							</View>
+							<Text style={[styles.statValue, { color: colors.foreground }]} numberOfLines={1}>
+								{stats.rotaMaisVista?.nome || "—"}
+							</Text>
+						</View>
+
+						{/* Dispositivos */}
+						<View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+							<View style={styles.cardHeader}>
+								<View style={styles.cardHeaderLeft}>
+									<Feather name="monitor" size={14} color={colors.mutedForeground} />
+									<Text style={[styles.cardTitleText, { color: colors.mutedForeground }]}>Dispositivos</Text>
+								</View>
+								<View style={[styles.badge, { borderColor: colors.border }]}>
+									<Feather name="trending-up" size={10} color={colors.foreground} />
+									<Text style={[styles.badgeText, { color: colors.foreground }]}>+{stats.novosPontos + stats.novosTrajetos} conteúdo</Text>
+								</View>
+							</View>
+							<View style={styles.devicesRow}>
+								<View style={styles.deviceItem}>
+									<Feather name="monitor" size={16} color="#ef4444" />
+									<Text style={[styles.deviceText, { color: colors.foreground }]}>{pctDesktop}%</Text>
+								</View>
+								<View style={styles.deviceItem}>
+									<Feather name="smartphone" size={16} color="#3b82f6" />
+									<Text style={[styles.deviceText, { color: colors.foreground }]}>{pctMobile}%</Text>
+								</View>
+							</View>
+						</View>
+					</View>
 				</ScrollView>
 			)}
 		</View>
@@ -140,47 +174,62 @@ export default function EstatisticasScreen() {
 const styles = StyleSheet.create({
 	container: { flex: 1, backgroundColor: "#0d0000" },
 	errorText: { textAlign: "center", marginTop: 40, paddingHorizontal: 20 },
-	grid: { flexDirection: "row", flexWrap: "wrap", gap: 12, justifyContent: "space-between" },
+	grid: { flexDirection: "column", gap: 16 },
 	statCard: {
 		backgroundColor: "#1a0a0a",
 		borderRadius: 12,
 		padding: 16,
 		borderWidth: 1,
 		borderColor: "rgba(255,255,255,0.07)",
-		width: "48%",
-		alignItems: "flex-start",
 	},
-	iconWrap: {
-		width: 36,
-		height: 36,
-		borderRadius: 10,
-		backgroundColor: "rgba(220,38,38,0.1)",
-		alignItems: "center",
-		justifyContent: "center",
-		marginBottom: 10,
-	},
-	statValue: { color: "#f8fafc", fontSize: 22, fontWeight: "800" },
-	statLabel: { color: "#94a3b8", fontSize: 11, marginTop: 2 },
-	sectionTitle: { color: "#f8fafc", fontSize: 16, fontWeight: "700", marginTop: 24, marginBottom: 12 },
-	highlightCard: {
-		backgroundColor: "#1a0a0a",
-		borderRadius: 12,
-		padding: 14,
-		borderWidth: 1,
-		borderColor: "rgba(255,255,255,0.07)",
+	cardHeader: {
 		flexDirection: "row",
 		alignItems: "center",
-		gap: 12,
+		justifyContent: "space-between",
+		marginBottom: 12,
+		flexWrap: "wrap",
+		gap: 8,
 	},
-	highlightIcon: {
-		width: 36,
-		height: 36,
-		borderRadius: 10,
-		backgroundColor: "rgba(220,38,38,0.1)",
+	cardHeaderLeft: {
+		flexDirection: "row",
 		alignItems: "center",
-		justifyContent: "center",
+		gap: 6,
 	},
-	highlightSub: { color: "#64748b", fontSize: 11 },
-	highlightName: { color: "#f8fafc", fontWeight: "600", fontSize: 13, marginTop: 2 },
-	highlightCount: { color: "#94a3b8", fontSize: 12 },
+	cardTitleText: {
+		fontSize: 13,
+		fontWeight: "500",
+	},
+	badge: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 4,
+		borderWidth: 1,
+		paddingHorizontal: 8,
+		paddingVertical: 4,
+		borderRadius: 8,
+		backgroundColor: "transparent",
+	},
+	badgeText: {
+		fontSize: 10,
+		fontWeight: "600",
+	},
+	statValue: {
+		fontSize: 24,
+		fontWeight: "700",
+	},
+	devicesRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 16,
+		marginTop: 4,
+	},
+	deviceItem: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 6,
+	},
+	deviceText: {
+		fontSize: 14,
+		fontWeight: "600",
+	},
 });

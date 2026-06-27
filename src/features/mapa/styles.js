@@ -14,19 +14,6 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
 
-  crosshairDot: {
-    position: "absolute",
-    top: "50%",
-    left: "50%",
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#ffffff",
-    borderWidth: 2,
-    borderColor: "#dc2626",
-    marginTop: -5,
-    marginLeft: -5,
-  },
   coordsBadge: {
     position: "absolute",
     top: "50%",

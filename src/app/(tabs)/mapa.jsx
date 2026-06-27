@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import * as ImagePicker from "expo-image-picker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -8,10 +7,9 @@ import { WebView } from "react-native-webview";
 import { useAuth } from "../../context/AuthContext";
 import { useDialog } from "../../context/DialogContext";
 import { useAppTheme } from "../../context/ThemeContext";
-import { createPonto, getMapPoints, getPointCategories, registarVisualizacao } from "../../lib/360api";
+import { registarVisualizacao, getMyFavorites, addFavoritePoint, removeFavoritePoint } from "../../lib/360api";
 import { isAdminRole } from "../../lib/auth";
 
-import CreatePointModal from "../../features/mapa/components/CreatePointModal";
 import RoutesScreenModal from "../../features/mapa/components/RoutesScreenModal";
 import { buildMapHtml } from "../../features/mapa/mapHtml";
 import { fetchOSRMRoute } from "../../features/mapa/osrm";
@@ -61,18 +59,11 @@ export default function MapaScreen() {
   const [routeMetricsById, setRouteMetricsById] = useState({});
   const [isRoutesScreenOpen, setIsRoutesScreenOpen] = useState(false);
   const [expandedRouteId, setExpandedRouteId] = useState(null);
-  const [longPressedIndex, setLongPressedIndex] = useState(null);
   const [bottomTab, setBottomTab] = useState("points");
-  const [isCreatePointModalOpen, setIsCreatePointModalOpen] = useState(false);
-  const [newPointName, setNewPointName] = useState("");
-  const [newPointDescription, setNewPointDescription] = useState("");
-  const [newPointCategoryIds, setNewPointCategoryIds] = useState([]);
-  const [newPointImage, setNewPointImage] = useState(null);
-  const [pointCategories, setPointCategories] = useState([]);
-  const [isLoadingPointCategories, setIsLoadingPointCategories] = useState(false);
-  const [isCreatingPoint, setIsCreatingPoint] = useState(false);
   const [isPointViewerOpen, setIsPointViewerOpen] = useState(false);
   const [pointViewerData, setPointViewerData] = useState(null);
+  const [favoritePoints, setFavoritePoints] = useState(new Set());
+  const [isTogglingFavorite, setIsTogglingFavorite] = useState(false);
   const hasBootstrappedRoutes = useRef(false);
   const resolvedRoutesRef = useRef([]);
   const routeListRef = useRef([]);
@@ -100,8 +91,25 @@ export default function MapaScreen() {
   }, [resolvedRoutes]);
 
   useEffect(() => {
+    if (user && token && !isAdminRole(user?.role)) {
+      getMyFavorites(token)
+        .then(favs => {
+          const pointIds = new Set((favs.pontos || []).map(p => p.id));
+          setFavoritePoints(pointIds);
+        })
+        .catch(() => {});
+    }
+  }, [user, token]);
+
+  useEffect(() => {
     routeListRef.current = routeList;
   }, [routeList]);
+
+  useEffect(() => {
+    if (isMapReady && webViewRef.current) {
+      webViewRef.current.injectJavaScript(`if (window.setFavorites) { window.setFavorites(${JSON.stringify(Array.from(favoritePoints))}); }; true;`);
+    }
+  }, [favoritePoints, isMapReady]);
 
   const renderedRouteIdsRef = useRef(new Set());
   const renderingRouteIdsRef = useRef(new Set());
@@ -123,17 +131,23 @@ export default function MapaScreen() {
       renderedRouteIdsRef.current.add(route.id);
 
       setRouteMetricsById((prev) => {
-        if (prev[route.id]) return prev;
+        const existing = prev[route.id];
+
         if (result) {
-          return {
-            ...prev,
-            [route.id]: {
-              distanceMeters: result.distanceMeters,
-              durationSeconds: result.durationSeconds,
-              steps: result.steps.map(toPortugueseDirection),
-            },
-          };
+          const resultSteps = result.steps.map(toPortugueseDirection);
+          if (resultSteps.length > 0 || !existing || existing.steps.length === 0) {
+            return {
+              ...prev,
+              [route.id]: {
+                distanceMeters: result.distanceMeters,
+                durationSeconds: result.durationSeconds,
+                steps: resultSteps,
+              },
+            };
+          }
         }
+
+        if (existing) return prev;
 
         const fallbackDistance = approximatePolylineDistanceMeters(latLngs);
         return {
@@ -214,7 +228,6 @@ export default function MapaScreen() {
 
     const point = points[index];
 
-    setLongPressedIndex(null);
     setPointViewerData({
       pointId: point.id,
     });
@@ -232,6 +245,33 @@ export default function MapaScreen() {
     hasShownPointViewerErrorRef.current = false;
   }
 
+  async function toggleFavorite(point) {
+    if (!token || isTogglingFavorite) return;
+    setIsTogglingFavorite(true);
+    const isFav = favoritePoints.has(point.id);
+    try {
+      if (isFav) {
+        await removeFavoritePoint(point.id, token);
+        setFavoritePoints(prev => {
+          const next = new Set(prev);
+          next.delete(point.id);
+          return next;
+        });
+      } else {
+        await addFavoritePoint(point.id, token);
+        setFavoritePoints(prev => {
+          const next = new Set(prev);
+          next.add(point.id);
+          return next;
+        });
+      }
+    } catch (e) {
+      showError("Não foi possível atualizar os favoritos.");
+    } finally {
+      setIsTogglingFavorite(false);
+    }
+  }
+
   function toggleRoutes(value) {
     setShowRoutes(value);
     webViewRef.current?.injectJavaScript(
@@ -244,128 +284,7 @@ export default function MapaScreen() {
     webViewRef.current?.injectJavaScript(`window.setBaseLayer('${mode}'); true;`);
   }
 
-  function openCreatePointModal() {
-    if (!cursorCoords) {
-      showInfo("Move o mapa para posicionar a mira e tenta novamente.", "Sem coordenadas");
-      return;
-    }
 
-    setNewPointName("");
-    setNewPointDescription("");
-    setNewPointCategoryIds([]);
-    setNewPointImage(null);
-    setIsCreatePointModalOpen(true);
-  }
-
-  async function pickImageForNewPoint() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      showInfo("Ativa acesso às fotos para selecionar uma imagem.", "Permissão necessária");
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: false,
-      quality: 0.9,
-    });
-
-    if (result.canceled || !result.assets[0]) return;
-
-    const asset = result.assets[0];
-    const fileName = asset.fileName || asset.uri.split("/").pop() || `ponto-${Date.now()}.jpg`;
-    setNewPointImage({
-      uri: asset.uri,
-      name: fileName,
-      type: asset.mimeType || "image/jpeg",
-    });
-  }
-
-  useEffect(() => {
-    if (!isCreatePointModalOpen) return;
-    let cancelled = false;
-
-    async function loadCategories() {
-      setIsLoadingPointCategories(true);
-      try {
-        const categorias = await getPointCategories();
-        if (!cancelled) {
-          setPointCategories(categorias);
-        }
-      } catch {
-        if (!cancelled) {
-          setPointCategories([]);
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingPointCategories(false);
-        }
-      }
-    }
-
-    loadCategories();
-    return () => {
-      cancelled = true;
-    };
-  }, [isCreatePointModalOpen]);
-
-  async function handleCreatePointAtCursor() {
-    if (!cursorCoords) {
-      showError("Não foi possível obter a posição atual da mira.", "Sem coordenadas");
-      return;
-    }
-
-    if (!token) {
-      showInfo("Precisas de iniciar sessão para criar pontos.", "Sessão necessária");
-      return;
-    }
-
-    if (!newPointName.trim()) {
-      showError("Define um nome para o ponto.", "Nome obrigatório");
-      return;
-    }
-
-    if (!newPointDescription.trim()) {
-      showError("Define uma descrição para o ponto.", "Descrição obrigatória");
-      return;
-    }
-
-    if (newPointCategoryIds.length === 0) {
-      showError("Seleciona pelo menos uma categoria.", "Categoria obrigatória");
-      return;
-    }
-
-    if (!newPointImage) {
-      showError("Seleciona uma imagem para o ponto.", "Imagem obrigatória");
-      return;
-    }
-
-    setIsCreatingPoint(true);
-    try {
-      await createPonto(
-        {
-          name: newPointName.trim(),
-          description: newPointDescription.trim(),
-          latitude: cursorCoords.lat,
-          longitude: cursorCoords.lng,
-          idCategorias: newPointCategoryIds,
-          imagePath: "",
-          imageFile: newPointImage,
-          username: user?.name,
-        },
-        token
-      );
-
-      const freshPoints = await getMapPoints();
-      setPoints(freshPoints);
-      setIsCreatePointModalOpen(false);
-      showSuccess("O novo ponto foi criado na posição da mira.", "Ponto criado");
-    } catch (error) {
-      showError(error instanceof Error ? error.message : "Não foi possível criar o ponto.");
-    } finally {
-      setIsCreatingPoint(false);
-    }
-  }
 
   useEffect(() => {
     setIsMapReady(false);
@@ -389,14 +308,21 @@ export default function MapaScreen() {
         const result = await fetchOSRMRoute(route.coordinates, controller.signal);
         if (controller.signal.aborted) return;
         if (!result) return;
-        setRouteMetricsById((prev) => ({
-          ...prev,
-          [route.id]: {
-            distanceMeters: result.distanceMeters,
-            durationSeconds: result.durationSeconds,
-            steps: result.steps.map(toPortugueseDirection),
-          },
-        }));
+        setRouteMetricsById((prev) => {
+          const existing = prev[route.id];
+          const resultSteps = result.steps.map(toPortugueseDirection);
+          if (resultSteps.length > 0 || !existing || existing.steps.length === 0) {
+            return {
+              ...prev,
+              [route.id]: {
+                distanceMeters: result.distanceMeters,
+                durationSeconds: result.durationSeconds,
+                steps: resultSteps,
+              },
+            };
+          }
+          return prev;
+        });
       })();
     }
     return () => { controller.abort(); };
@@ -431,8 +357,8 @@ export default function MapaScreen() {
       overlay: colors.overlay,
       softOverlay: colors.softOverlay,
       accentSoft: colors.accentSoft,
-    }),
-    [colors.accentSoft, colors.background, colors.border, colors.card, colors.foreground, colors.mutedForeground, colors.overlay, colors.primary, colors.primaryForeground, colors.softOverlay, points]
+    }, !isAdminRole(user?.role)),
+    [colors.accentSoft, colors.background, colors.border, colors.card, colors.foreground, colors.mutedForeground, colors.overlay, colors.primary, colors.primaryForeground, colors.softOverlay, points, user?.role]
   );
 
   const showMapInitError = useCallback((detail) => {
@@ -483,16 +409,26 @@ export default function MapaScreen() {
               const data = JSON.parse(e.nativeEvent.data);
               if (data.mapInitError !== undefined) {
                 showMapInitError(data.mapInitError);
-              } else if (data.longPressIndex !== undefined) {
-                setLongPressedIndex(data.longPressIndex);
               } else if (data.markerIndex !== undefined) {
                 void openPointViewerByIndex(Number(data.markerIndex));
+              } else if (data.toggleFavoriteIndex !== undefined) {
+                const pt = points[Number(data.toggleFavoriteIndex)];
+                if (pt) void toggleFavorite(pt);
               } else if (data.routeInfo !== undefined) {
                 const routeInfo = data.routeInfo;
                 setRouteMetricsById((prev) => {
                   const existing = prev[routeInfo.id];
                   // If we already have "real" OSRM steps, keep those metrics.
-                  if (existing && existing.steps.length > 0) return prev;
+                  if (existing && existing.steps.length > 0) {
+                    return {
+                      ...prev,
+                      [routeInfo.id]: {
+                        ...existing,
+                        distanceMeters: Number(routeInfo.distanceMeters) || existing.distanceMeters,
+                        durationSeconds: Number(routeInfo.durationSeconds) || existing.durationSeconds,
+                      }
+                    };
+                  }
 
                   const incomingSteps =
                     Array.isArray(routeInfo.steps) && routeInfo.steps.length > 0
@@ -547,14 +483,11 @@ export default function MapaScreen() {
           </TouchableOpacity>
         )}
 
-        <View style={[styles.crosshairDot, { borderColor: colors.primary }]} pointerEvents="none" />
 
         <MapFloatingControls
           colors={colors}
           isDark={isDark}
           top={top}
-          isAdmin={isAdminRole(user?.role)}
-          openCreatePointModal={openCreatePointModal}
           isLayersMenuOpen={isLayersMenuOpen}
           setIsLayersMenuOpen={setIsLayersMenuOpen}
           isRoutesMenuOpen={isRoutesMenuOpen}
@@ -607,31 +540,6 @@ export default function MapaScreen() {
           onRemoveRoute={handleRemoveRoute}
         />
 
-        {longPressedIndex !== null && points[longPressedIndex] && (
-          <TouchableOpacity
-            style={[styles.detailCardOverlay, { backgroundColor: colors.background }]}
-            onPress={() => setLongPressedIndex(null)}
-            activeOpacity={1}
-          >
-            <View style={styles.detailCardHandle} />
-            <Text style={[styles.detailCardTitle, { color: colors.foreground }]}>{points[longPressedIndex].title}</Text>
-            <Text style={[styles.detailCardDetail, { color: colors.mutedForeground }]}>{points[longPressedIndex].detail}</Text>
-            <View style={styles.detailCardActions}>
-              <TouchableOpacity
-                style={[styles.detailCardBtn, styles.detailCardBtnPrimary, { backgroundColor: colors.primary }]}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  void openPointViewerByIndex(longPressedIndex);
-                }}
-                activeOpacity={0.75}
-              >
-                <Feather name="eye" size={16} color={colors.primaryForeground} />
-                <Text style={[styles.detailCardBtnText, { color: colors.primaryForeground }]}>Visualizar 360º</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        )}
-
         {isPointViewerOpen && pointViewerData?.pointId && (
           <ViewerProvider pointId={pointViewerData.pointId} token={token}>
             <PointViewerModal 
@@ -644,24 +552,7 @@ export default function MapaScreen() {
           </ViewerProvider>
         )}
 
-        <CreatePointModal
-          isOpen={isCreatePointModalOpen}
-          onClose={() => setIsCreatePointModalOpen(false)}
-          colors={colors}
-          coords={coords}
-          newPointName={newPointName}
-          setNewPointName={setNewPointName}
-          newPointDescription={newPointDescription}
-          setNewPointDescription={setNewPointDescription}
-          pointCategories={pointCategories}
-          isLoadingPointCategories={isLoadingPointCategories}
-          newPointCategoryIds={newPointCategoryIds}
-          setNewPointCategoryIds={setNewPointCategoryIds}
-          newPointImage={newPointImage}
-          pickImageForNewPoint={pickImageForNewPoint}
-          isCreatingPoint={isCreatingPoint}
-          handleCreatePointAtCursor={handleCreatePointAtCursor}
-        />
+
     </View>
   );
 }

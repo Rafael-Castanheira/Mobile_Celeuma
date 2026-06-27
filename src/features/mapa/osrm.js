@@ -12,7 +12,9 @@ export async function fetchOSRMRoute(coordinates, signal) {
     const steps = [];
     route.legs?.forEach((leg) => {
       leg.steps?.forEach((step) => {
-        if (step?.maneuver?.instruction) steps.push(step.maneuver.instruction);
+        if (step && step.maneuver) {
+          steps.push(step);
+        }
       });
     });
     return {

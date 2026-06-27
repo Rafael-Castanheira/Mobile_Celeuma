@@ -17,7 +17,7 @@ function asFiniteNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-export function buildMapHtml(points, embeddedRoutes = [], theme) {
+export function buildMapHtml(points, embeddedRoutes = [], theme, showFavorites = false) {
   const firstValidPoint = points.find(
     (point) => asFiniteNumber(point?.latitude) !== null && asFiniteNumber(point?.longitude) !== null
   );
@@ -38,7 +38,14 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
       
       const popupHtml = `<div style='min-width:180px;display:flex;flex-direction:column;'>
         ${imgHtml}
-        <strong style='display:block;margin-bottom:4px;font-size:14px;color:${theme.foreground}'>${escapeHtml(p?.title)}</strong>
+        <div style='display:flex;justify-content:space-between;align-items:flex-start;'>
+          <strong style='display:block;margin-bottom:4px;font-size:14px;color:${theme.foreground};flex:1;'>${escapeHtml(p?.title)}</strong>
+          ${showFavorites ? `
+          <button class='point-toggle-favorite' data-marker-index='${i}' data-point-id='${p.id}' style='background:transparent;border:none;cursor:pointer;color:${theme.mutedForeground};padding:0;margin-left:8px;outline:none;'>
+            <svg class='fav-icon-svg' width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+          </button>
+          ` : ""}
+        </div>
         <span style='display:block;margin-bottom:12px;font-size:12px;color:${theme.mutedForeground}'>${escapeHtml(p?.detail)}</span>
         <button class='point-open-360' data-marker-index='${i}' style='background-color:${theme.primary};color:${theme.primaryForeground};border:none;border-radius:6px;padding:8px 12px;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;width:100%;'>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -48,10 +55,7 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
 
       return `L.marker([${latitude}, ${longitude}], { icon: markerIcon })
           .addTo(map)
-          .bindPopup(${JSON.stringify(popupHtml)})
-          .on('contextmenu', function() {
-            window.ReactNativeWebView.postMessage(JSON.stringify({ longPressIndex: ${i} }));
-          });`;
+          .bindPopup(${JSON.stringify(popupHtml)});`;
     })
     .join("\n");
 
@@ -64,6 +68,7 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-polylinedecorator/dist/leaflet.polylineDecorator.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body, #map { width: 100%; height: 100%; }
@@ -197,13 +202,56 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
       activeBaseLayer.addTo(map);
     };
     window.setBaseLayer('satellite');
+    var favoritePointIds = new Set();
+    window.setFavorites = function(favArr) {
+      favoritePointIds = new Set(favArr);
+      document.querySelectorAll('.point-toggle-favorite').forEach(function(btn) {
+        var pid = Number(btn.getAttribute('data-point-id'));
+        window.updateFavoriteIcon(btn, pid);
+      });
+    };
+    window.toggleFavoriteUI = function(pid, btn) {
+      if (favoritePointIds.has(pid)) favoritePointIds.delete(pid);
+      else favoritePointIds.add(pid);
+      window.updateFavoriteIcon(btn, pid);
+    };
+    window.updateFavoriteIcon = function(btn, pid) {
+      var svg = btn.querySelector('.fav-icon-svg');
+      if (!svg) return;
+      if (favoritePointIds.has(pid)) {
+        svg.setAttribute('fill', '#fbbf24');
+        svg.setAttribute('stroke', '#fbbf24');
+        btn.style.color = '#fbbf24';
+      } else {
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        btn.style.color = '${theme.mutedForeground}';
+      }
+    };
+    map.on('popupopen', function() {
+      document.querySelectorAll('.point-toggle-favorite').forEach(function(btn) {
+        var pid = Number(btn.getAttribute('data-point-id'));
+        window.updateFavoriteIcon(btn, pid);
+      });
+    });
+
     document.addEventListener('click', function(event) {
-      var action = event.target && event.target.closest ? event.target.closest('.point-open-360') : null;
-      if (!action) return;
-      event.preventDefault();
-      var markerIndex = Number(action.getAttribute('data-marker-index'));
-      if (!Number.isFinite(markerIndex)) return;
-      window.ReactNativeWebView.postMessage(JSON.stringify({ markerIndex: markerIndex }));
+      var btn360 = event.target && event.target.closest ? event.target.closest('.point-open-360') : null;
+      var btnFav = event.target && event.target.closest ? event.target.closest('.point-toggle-favorite') : null;
+      
+      if (btn360) {
+        event.preventDefault();
+        var markerIndex = Number(btn360.getAttribute('data-marker-index'));
+        if (!Number.isFinite(markerIndex)) return;
+        window.ReactNativeWebView.postMessage(JSON.stringify({ markerIndex: markerIndex }));
+      } else if (btnFav) {
+        event.preventDefault();
+        var markerIndex = Number(btnFav.getAttribute('data-marker-index'));
+        var pointId = Number(btnFav.getAttribute('data-point-id'));
+        if (!Number.isFinite(markerIndex) || !Number.isFinite(pointId)) return;
+        window.toggleFavoriteUI(pointId, btnFav);
+        window.ReactNativeWebView.postMessage(JSON.stringify({ toggleFavoriteIndex: markerIndex }));
+      }
     });
     var routeColor = '${theme.primary}';
     var routeColorSelected = '${theme.primary}';
@@ -243,6 +291,7 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
         if (route.outlinePolyline) route.outlinePolyline.bringToFront();
         route.polyline.bringToFront();
         if (route.hitPolyline) route.hitPolyline.bringToFront();
+        if (route.decorator) route.decorator.bringToFront();
       }
     }
 
@@ -315,6 +364,22 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
         lineJoin: 'round'
       });
       var hitPolyline = L.polyline(latLngs, { color: '#000000', weight: 20, opacity: 0, interactive: true });
+      
+      var decorator = null;
+      if (typeof L.polylineDecorator === 'function') {
+        decorator = L.polylineDecorator(polyline, {
+          patterns: [{
+            offset: '10%',
+            repeat: 80,
+            symbol: L.Symbol.arrowHead({
+              pixelSize: 10,
+              polygon: true,
+              pathOptions: { stroke: true, weight: 2, color: routeOutlineColor, fillColor: routeColor, fillOpacity: 1 }
+            })
+          }]
+        });
+      }
+
       function onAddRouteClick() {
         ignoreNextMapClick = true;
         selectRoute(id);
@@ -323,7 +388,7 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
       polyline.on('click', onAddRouteClick);
       hitPolyline.on('click', onAddRouteClick);
 
-      routes[id] = { outlinePolyline: outlinePolyline, polyline: polyline, hitPolyline: hitPolyline };
+      routes[id] = { outlinePolyline: outlinePolyline, polyline: polyline, hitPolyline: hitPolyline, decorator: decorator };
 
       if (selectedRouteId === id) {
         styleRoute(id, true);
@@ -333,6 +398,7 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
         outlinePolyline.addTo(map);
         polyline.addTo(map);
         hitPolyline.addTo(map);
+        if (decorator) decorator.addTo(map);
       }
 
       window.ReactNativeWebView.postMessage(JSON.stringify({ routeRendered: id }));
@@ -362,6 +428,9 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
       if (routes[id].hitPolyline && map.hasLayer(routes[id].hitPolyline)) {
         map.removeLayer(routes[id].hitPolyline);
       }
+      if (routes[id].decorator && map.hasLayer(routes[id].decorator)) {
+        map.removeLayer(routes[id].decorator);
+      }
       if (selectedRouteId === id) { selectedRouteId = null; }
       delete routes[id];
     };
@@ -370,6 +439,7 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
         if (r.outlinePolyline && map.hasLayer(r.outlinePolyline)) { map.removeLayer(r.outlinePolyline); }
         if (r.polyline && map.hasLayer(r.polyline)) { map.removeLayer(r.polyline); }
         if (r.hitPolyline && map.hasLayer(r.hitPolyline)) { map.removeLayer(r.hitPolyline); }
+        if (r.decorator && map.hasLayer(r.decorator)) { map.removeLayer(r.decorator); }
       });
       routes = {};
       selectedRouteId = null;
@@ -380,6 +450,7 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
         if (r.outlinePolyline && !map.hasLayer(r.outlinePolyline)) { r.outlinePolyline.addTo(map); }
         if (r.polyline && !map.hasLayer(r.polyline)) { r.polyline.addTo(map); }
         if (r.hitPolyline && !map.hasLayer(r.hitPolyline)) { r.hitPolyline.addTo(map); }
+        if (r.decorator && !map.hasLayer(r.decorator)) { r.decorator.addTo(map); }
       });
     };
     window.hideRoutes = function() {
@@ -388,6 +459,7 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
         if (r.outlinePolyline && map.hasLayer(r.outlinePolyline)) { map.removeLayer(r.outlinePolyline); }
         if (r.polyline && map.hasLayer(r.polyline)) { map.removeLayer(r.polyline); }
         if (r.hitPolyline && map.hasLayer(r.hitPolyline)) { map.removeLayer(r.hitPolyline); }
+        if (r.decorator && map.hasLayer(r.decorator)) { map.removeLayer(r.decorator); }
       });
     };
     window.addRouteOSRM = function(id, waypoints) {
@@ -414,6 +486,22 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
           lineJoin: 'round'
         });
         var _hitPolyline = L.polyline(latLngs, { color: '#000000', weight: 20, opacity: 0, interactive: true });
+        
+        var _decorator = null;
+        if (typeof L.polylineDecorator === 'function') {
+          _decorator = L.polylineDecorator(_polyline, {
+            patterns: [{
+              offset: '10%',
+              repeat: 80,
+              symbol: L.Symbol.arrowHead({
+                pixelSize: 10,
+                polygon: true,
+                pathOptions: { stroke: true, weight: 2, color: routeOutlineColor, fillColor: routeColor, fillOpacity: 1 }
+              })
+            }]
+          });
+        }
+
         function onRouteClick() {
           ignoreNextMapClick = true;
           selectRoute(_id);
@@ -421,11 +509,11 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
         }
         _polyline.on('click', onRouteClick);
         _hitPolyline.on('click', onRouteClick);
-        routes[_id] = { outlinePolyline: _outlinePolyline, polyline: _polyline, hitPolyline: _hitPolyline };
+        routes[_id] = { outlinePolyline: _outlinePolyline, polyline: _polyline, hitPolyline: _hitPolyline, decorator: _decorator };
         if (selectedRouteId === _id) {
           styleRoute(_id, true);
         }
-        if (routesVisible) { _outlinePolyline.addTo(map); _polyline.addTo(map); _hitPolyline.addTo(map); }
+        if (routesVisible) { _outlinePolyline.addTo(map); _polyline.addTo(map); _hitPolyline.addTo(map); if (_decorator) _decorator.addTo(map); }
         selectRoute(_id);
         window.ReactNativeWebView.postMessage(JSON.stringify({ routeRendered: _id }));
         window.ReactNativeWebView.postMessage(JSON.stringify({ routeInfo: { id: _id, distanceMeters: distanceMeters, durationSeconds: durationSeconds, steps: steps } }));
@@ -476,6 +564,22 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
         lineJoin: 'round'
       });
       var _hitPolyline = L.polyline(_waypoints, { color: '#000000', weight: 20, opacity: 0, interactive: true });
+      
+      var _decorator = null;
+      if (typeof L.polylineDecorator === 'function') {
+        _decorator = L.polylineDecorator(_polyline, {
+          patterns: [{
+            offset: '10%',
+            repeat: 80,
+            symbol: L.Symbol.arrowHead({
+              pixelSize: 10,
+              polygon: true,
+              pathOptions: { stroke: true, weight: 2, color: routeOutlineColor, fillColor: routeColor, fillOpacity: 1 }
+            })
+          }]
+        });
+      }
+
       function onRouteClick() {
         ignoreNextMapClick = true;
         selectRoute(_id);
@@ -483,11 +587,11 @@ export function buildMapHtml(points, embeddedRoutes = [], theme) {
       }
       _polyline.on('click', onRouteClick);
       _hitPolyline.on('click', onRouteClick);
-      routes[_id] = { outlinePolyline: _outlinePolyline, polyline: _polyline, hitPolyline: _hitPolyline };
+      routes[_id] = { outlinePolyline: _outlinePolyline, polyline: _polyline, hitPolyline: _hitPolyline, decorator: _decorator };
       if (selectedRouteId === _id) {
         styleRoute(_id, true);
       }
-      if (routesVisible) { _outlinePolyline.addTo(map); _polyline.addTo(map); _hitPolyline.addTo(map); }
+      if (routesVisible) { _outlinePolyline.addTo(map); _polyline.addTo(map); _hitPolyline.addTo(map); if (_decorator) _decorator.addTo(map); }
     })();
     `
       )
