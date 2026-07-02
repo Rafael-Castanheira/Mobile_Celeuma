@@ -16,6 +16,7 @@ export default function MapFloatingControls({
   setBaseLayer,
   showRoutes,
   toggleRoutes,
+  onGoBack,
 }) {
   // Em modo claro: outline e ícone usam a cor primary do tema activo
   const fabBorder    = isDark ? colors.border    : colors.primary;
@@ -26,6 +27,21 @@ export default function MapFloatingControls({
 
   return (
     <>
+      {/* Botão Voltar (esquerda) */}
+      {onGoBack && (
+        <TouchableOpacity
+          style={[
+            styles.fabButton,
+            styles.fabBackButton,
+            { top: top + 8, backgroundColor: isDark ? colors.overlay : colors.card, borderColor: fabBorder },
+          ]}
+          onPress={onGoBack}
+          activeOpacity={0.8}
+        >
+          <Feather name="arrow-left" size={18} color={fabIconColor} />
+        </TouchableOpacity>
+      )}
+
       <View style={[styles.fabRow, { top: top + 8 }]}>
         {/* Botão Visão do mapa (layers) */}
         <TouchableOpacity

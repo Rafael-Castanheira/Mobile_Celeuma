@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollView, Switch, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
+import { useRouter } from "expo-router";
 import { useAuth } from "../../context/AuthContext";
 import { useDialog } from "../../context/DialogContext";
 import { useAppTheme } from "../../context/ThemeContext";
@@ -30,6 +31,7 @@ import MapFloatingControls from "../../features/mapa/components/MapFloatingContr
 export default function MapaScreen() {
   const tabBarHeight = useBottomTabBarHeight();
   const { top } = useSafeAreaInsets();
+  const router = useRouter();
   const { token, user } = useAuth();
   const { colors, isDark } = useAppTheme();
   const { showError, showInfo, showSuccess } = useDialog();
@@ -498,6 +500,7 @@ export default function MapaScreen() {
           setBaseLayer={setBaseLayer}
           showRoutes={showRoutes}
           toggleRoutes={toggleRoutes}
+          onGoBack={() => router.back()}
         />
       </View>
 

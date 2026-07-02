@@ -66,6 +66,10 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.15)",
   },
+  fabBackButton: {
+    position: "absolute",
+    left: 8,
+  },
   fabButtonActive: {
     backgroundColor: "#dc2626",
     borderColor: "rgba(255,255,255,0.3)",
